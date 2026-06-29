@@ -517,7 +517,15 @@ tr.data-row:hover td{background:#FAFAFA}
           </div>
           <div class="fg fg3" style="margin-top:10px">
             <div class="field"><label>광고료 (VAT별도, 원) *</label><input id="ef-amt" type="number" style="text-align:right" placeholder="0" oninput="calcEntryPreview()"></div>
-            <div class="field fspan2"><label>비고</label><input id="ef-note"></div>
+            <div class="field">
+              <label>부가세 구분 <span style="font-size:10px;color:var(--purple-text)">채널별 개별 설정</span></label>
+              <select id="ef-vat">
+                <option value="taxable">과세 (10%)</option>
+                <option value="zero">영세율 (0%)</option>
+                <option value="exempt">면세</option>
+              </select>
+            </div>
+            <div class="field"><label>비고</label><input id="ef-note"></div>
           </div>
           <div class="calc-preview">
             <div><div class="cp-label">광고료 VAT포함</div><div class="cp-val" id="cp-amt">—</div></div>
@@ -542,7 +550,7 @@ tr.data-row:hover td{background:#FAFAFA}
         <div class="tbl-wrap">
           <table>
             <thead><tr>
-              <th>#</th><th>매체명</th><th>공급하는자</th><th>유형</th><th>청구일</th>
+              <th>#</th><th>매체명</th><th>공급하는자</th><th>유형</th><th>부가세</th><th>청구일</th>
               <th class="r">광고료<br>VAT별도</th><th class="r">광고료<br>VAT포함</th>
               <th class="r" style="color:var(--blue-text)">기본수수료<br>VAT별도</th>
               <th class="r" style="color:var(--purple-text)">역량지원금<br>VAT별도</th>
@@ -571,11 +579,22 @@ tr.data-row:hover td{background:#FAFAFA}
         <div class="card-hd">출력 옵션</div>
         <div class="fg fg3">
           <div class="field">
-            <label>집행건 선택</label>
-            <select id="q-exec-sel" onchange="renderQuote()"><option value="">전체 합산</option></select>
+            <label>집행건 선택 (복수 선택 가능)</label>
+            <div style="position:relative">
+              <div id="q-exec-trigger" onclick="toggleExecDropdown()" style="height:34px;border:1px solid var(--border);border-radius:var(--r);padding:0 .65rem;font-size:13px;color:var(--text);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none">
+                <span id="q-exec-label">전체 합산</span>
+                <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text3)"></i>
+              </div>
+              <div id="q-exec-dropdown" style="display:none;position:absolute;top:38px;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.1);max-height:220px;overflow-y:auto">
+                <label style="display:flex;align-items:center;gap:8px;padding:.5rem .75rem;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text2)" onclick="toggleAllExecs(event)">
+                  <input type="checkbox" id="q-exec-all" checked style="cursor:pointer"> 전체 합산
+                </label>
+                <div id="q-exec-checks"></div>
+              </div>
+            </div>
           </div>
           <div class="field">
-            <label>부가세 구분</label>
+            <label>기본 부가세 구분 <span style="font-size:10px;color:var(--text3)">(채널별 개별 설정 우선)</span></label>
             <select id="q-vat-type" onchange="renderQuote()">
               <option value="taxable">과세 (10%)</option>
               <option value="zero">영세율 (0%)</option>
@@ -612,12 +631,13 @@ tr.data-row:hover td{background:#FAFAFA}
           <thead><tr>
             <th>품목</th><th>매체명</th><th>공급하는자</th><th>공급받는자</th>
             <th class="r">수량</th><th>청구일</th>
-            <th class="r">광고료(VAT별도)</th><th class="r" id="q-vat-hd">부가세(10%)</th><th class="r">합계(VAT포함)</th>
+            <th>부가세</th>
+            <th class="r">광고료(VAT별도)</th><th class="r">부가세</th><th class="r">합계(VAT포함)</th>
           </tr></thead>
-          <tbody id="q-tbody"><tr><td colspan="9" class="empty">집행 항목이 없습니다</td></tr></tbody>
+          <tbody id="q-tbody"><tr><td colspan="10" class="empty">집행 항목이 없습니다</td></tr></tbody>
           <tfoot id="q-tfoot" style="display:none">
-            <tr class="tr-foot"><td colspan="6">소계</td><td class="r" id="q-sub-ex">—</td><td class="r" id="q-sub-vat">—</td><td class="r" id="q-sub-in">—</td></tr>
-            <tr class="tr-foot2"><td colspan="6">제안 견적 (천원단위 절사, VAT별도)</td><td class="r" id="q-trunc" colspan="3">—</td></tr>
+            <tr class="tr-foot"><td colspan="7">소계</td><td class="r" id="q-sub-ex">—</td><td class="r" id="q-sub-vat">—</td><td class="r" id="q-sub-in">—</td></tr>
+            <tr class="tr-foot2"><td colspan="7">제안 견적 (천원단위 절사, VAT별도)</td><td class="r" id="q-trunc" colspan="3">—</td></tr>
           </tfoot>
         </table>
       </div>
@@ -1605,7 +1625,9 @@ function saveEntry(){
   const base=Math.round(amt*f.base), extra=Math.round(amt*f.extra);
   const editId=parseInt(el('ef-edit-id').value)||0;
   const entry={id:eid_++,media,corp,brn,mediaType:type,feeLabel:f.label,feeBadge:f.badge,
-    date:el('ef-date').value||'—',note:el('ef-note').value,amt,base,extra,total:base+extra};
+    date:el('ef-date').value||'—',note:el('ef-note').value,
+    vatType:gv('ef-vat')||'taxable',
+    amt,base,extra,total:base+extra};
   if(editId){const i=ex.entries.findIndex(e=>e.id===editId);if(i>=0){entry.id=editId;ex.entries[i]=entry;}}
   else ex.entries.push(entry);
   // 폼 카드 하이라이트 해제
@@ -1622,6 +1644,7 @@ function editEntry(entryId){
   el('ef-media').value=e.media; el('ef-corp').value=e.corp;
   el('ef-type').value=e.mediaType||'cable'; el('ef-date').value=e.date==='—'?'':e.date;
   el('ef-note').value=e.note||''; el('ef-amt').value=e.amt;
+  el('ef-vat').value=e.vatType||'taxable';
   if(el('ef-brn-hidden')) el('ef-brn-hidden').value=e.brn||'';
   calcEntryPreview();
   // 폼 카드 하이라이트
@@ -1654,7 +1677,8 @@ function resetEntryForm(){
   el('ef-edit-id').value=''; el('ef-save-lbl').textContent='항목 추가';
   el('ef-title').textContent='항목 추가'; el('ef-cancel-btn').style.display='none';
   ['ef-media','ef-corp','ef-amt','ef-date','ef-note','ef-brn-hidden'].forEach(id=>el(id).value='');
-  el('ef-dim').value=''; el('ef-type').value='cable'; calcEntryPreview();
+  el('ef-dim').value=''; el('ef-type').value='cable'; el('ef-vat').value='taxable';
+  calcEntryPreview();
 }
 
 function renderEntryTable(){
@@ -1669,11 +1693,13 @@ function renderEntryTable(){
     const extra=e.extra!==undefined?e.extra:Math.round(e.amt*f.extra);
     const total=base+extra;
     const isEditing=editingId===e.id;
+    const vatLabel={'taxable':'과세','zero':'영세율','exempt':'면세'};
     return `<tr class="data-row" id="entry-row-${e.id}" style="${isEditing?'background:var(--blue-bg);outline:2px solid var(--blue);outline-offset:-1px;':''}">
       <td style="color:var(--text3);font-size:11px">${i+1}</td>
       <td style="font-weight:500">${e.media}${isEditing?'<span style="font-size:10px;color:var(--blue);margin-left:4px;font-weight:600">수정중</span>':''}</td>
       <td style="font-size:11px;color:var(--text2)">${e.corp}</td>
       <td><span class="badge ${f.badge}">${f.label}</span></td>
+      <td><span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;background:${e.vatType==='zero'?'var(--purple-bg)':e.vatType==='exempt'?'var(--surface2)':'var(--green-bg)'};color:${e.vatType==='zero'?'var(--purple-text)':e.vatType==='exempt'?'var(--text2)':'var(--green-text)'}">${vatLabel[e.vatType||'taxable']}</span></td>
       <td style="font-size:11px">${e.date}</td>
       <td class="r">${W(e.amt)}</td><td class="r">${W(Math.round(e.amt*1.1))}</td>
       <td class="r" style="color:var(--blue-text)">${W(base)}</td>
@@ -1744,60 +1770,140 @@ function getEntries(execSel){
   return ex?ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})):[];
 }
 
+function getEntriesMulti(){
+  const ids=getSelectedExecIds();
+  if(!ids) return execs.flatMap(ex=>ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})));
+  return execs.filter(ex=>ids.includes(ex.id)).flatMap(ex=>ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})));
+}
+
 function syncExecSels(){
-  const opts='<option value="">전체 합산</option>'+execs.map(ex=>{const [y,m]=ex.month.split('-');return`<option value="${ex.id}">${ex.campName} ${y}년${parseInt(m)}월 (${ex.buyer})</option>`;}).join('');
-  el('q-exec-sel').innerHTML=opts;
-  el('pu-exec-sel').innerHTML=opts;
-  el('fi-exec-sel').innerHTML=opts;
-  el('fo-exec-sel').innerHTML=opts;
+  const baseOpts='<option value="">전체 합산</option>'+execs.map(ex=>{const [y,m]=ex.month.split('-');return`<option value="${ex.id}">${ex.campName} ${y}년${parseInt(m)}월 (${ex.buyer})</option>`;}).join('');
+  el('pu-exec-sel').innerHTML=baseOpts;
+  el('fi-exec-sel').innerHTML=baseOpts;
+  el('fo-exec-sel').innerHTML=baseOpts;
+  // 멀티셀렉트 체크박스 목록 갱신
+  const checks=el('q-exec-checks');
+  if(!checks) return;
+  checks.innerHTML=execs.map(ex=>{
+    const [y,m]=ex.month.split('-');
+    return `<label style="display:flex;align-items:center;gap:8px;padding:.5rem .75rem;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="onExecCheckChange(event)">
+      <input type="checkbox" class="q-exec-cb" value="${ex.id}" checked style="cursor:pointer">
+      ${ex.campName} ${y}년${parseInt(m)}월 (${ex.buyer})
+    </label>`;
+  }).join('');
+  updateExecLabel();
+}
+
+function toggleExecDropdown(){
+  const dd=el('q-exec-dropdown');
+  dd.style.display=dd.style.display==='none'?'block':'none';
+}
+
+// 드롭다운 외부 클릭 시 닫기
+document.addEventListener('click',function(e){
+  const trigger=el('q-exec-trigger'), dd=el('q-exec-dropdown');
+  if(trigger&&dd&&!trigger.contains(e.target)&&!dd.contains(e.target)){
+    dd.style.display='none';
+  }
+});
+
+function toggleAllExecs(e){
+  e.stopPropagation();
+  const allCb=el('q-exec-all');
+  const checked=allCb.checked;
+  qsa('.q-exec-cb').forEach(cb=>cb.checked=checked);
+  updateExecLabel();
+  renderQuote();
+}
+
+function onExecCheckChange(e){
+  e.stopPropagation();
+  // 개별 체크 변경 시 전체 체크박스 상태 업데이트
+  setTimeout(()=>{
+    const cbs=[...qsa('.q-exec-cb')];
+    const allChecked=cbs.every(c=>c.checked);
+    const noneChecked=cbs.every(c=>!c.checked);
+    const allCb=el('q-exec-all');
+    if(allCb){allCb.checked=allChecked;allCb.indeterminate=!allChecked&&!noneChecked;}
+    updateExecLabel();
+    renderQuote();
+  },0);
+}
+
+function updateExecLabel(){
+  const cbs=[...qsa('.q-exec-cb')];
+  const checked=cbs.filter(c=>c.checked);
+  const lbl=el('q-exec-label');
+  if(!lbl) return;
+  if(checked.length===0) lbl.textContent='선택 없음';
+  else if(checked.length===cbs.length) lbl.textContent='전체 합산';
+  else lbl.textContent=`${checked.length}건 선택`;
+}
+
+function getSelectedExecIds(){
+  const cbs=[...qsa('.q-exec-cb')];
+  if(!cbs.length) return null; // 전체
+  const checked=cbs.filter(c=>c.checked).map(c=>parseInt(c.value));
+  return checked.length===cbs.length ? null : checked; // null이면 전체
 }
 
 function renderQuote(){
-  const entries=getEntries(gv('q-exec-sel'));
-  const vatType=gv('q-vat-type');
-  const vatRate=vatType==='taxable'?0.1:0;
-  const vatLabel=vatType==='taxable'?'과세 (10%)':vatType==='zero'?'영세율 (0%)':'면세';
-  const buyer=entries.length?entries[0].buyer:'—';
+  const entries=getEntriesMulti();
+  const defaultVat=gv('q-vat-type');
+  const vatLabels={'taxable':'과세(10%)','zero':'영세율(0%)','exempt':'면세'};
+  const calcVat=(e)=>{const vt=e.vatType||defaultVat;return{vt,rate:vt==='taxable'?0.1:0,label:vatLabels[vt]};};
+
+  const buyers=[...new Set(entries.map(e=>e.buyer))].filter(Boolean);
   const months=[...new Set(entries.map(e=>e.month))];
   const [y,m]=months.length===1?months[0].split('-'):['',''];
-  el('qh-buyer').textContent=buyer;
-  el('qh-period').textContent=months.length===1?`${y}년 ${parseInt(m)}월`:'복수 월';
-  el('qh-vat').textContent=vatLabel;
-  el('q-vat-hd').textContent=vatType==='zero'?'부가세(영세율)':vatType==='exempt'?'(면세)':'부가세(10%)';
+  el('qh-buyer').textContent=buyers.join(', ')||'—';
+  el('qh-period').textContent=months.length===1?`${y}년 ${parseInt(m)}월`:`${months.length}개월`;
+  el('qh-vat').textContent='채널별 개별 적용';
+
   const sA=entries.reduce((s,e)=>s+e.amt,0);
-  const vatAmt=Math.round(sA*vatRate);
+  const sVat=entries.reduce((s,e)=>s+Math.round(e.amt*calcVat(e).rate),0);
   el('q-kpi').innerHTML=[
     {l:'총 광고료 (VAT별도)',v:W(sA)+'원'},
-    {l:`부가세 (${vatLabel})`,v:W(vatAmt)+'원'},
-    {l:'합계',v:W(sA+vatAmt)+'원',bl:true},
+    {l:'부가세 합계',v:W(sVat)+'원'},
+    {l:'합계 (VAT포함)',v:W(sA+sVat)+'원',bl:true},
     {l:'천원단위 절사 (VAT별도)',v:W(trunc(sA))+'원'},
   ].map(k=>`<div class="kpi${k.bl?' bl':''}"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div></div>`).join('');
+
   const tb=el('q-tbody');
-  if(!entries.length){tb.innerHTML='<tr><td colspan="9" class="empty">항목이 없습니다</td></tr>';el('q-tfoot').style.display='none';return;}
+  if(!entries.length){tb.innerHTML='<tr><td colspan="10" class="empty">집행 항목이 없습니다</td></tr>';el('q-tfoot').style.display='none';return;}
+
   tb.innerHTML=entries.map(e=>{
-    const vat=Math.round(e.amt*vatRate);
+    const {vt,rate,label}=calcVat(e);
+    const vat=Math.round(e.amt*rate);
+    const vatBadge=`<span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;background:${vt==='zero'?'var(--purple-bg)':vt==='exempt'?'var(--surface2)':'var(--green-bg)'};color:${vt==='zero'?'var(--purple-text)':vt==='exempt'?'var(--text2)':'var(--green-text)'}">${label}</span>`;
     return `<tr class="data-row"><td><span class="badge b-camp">${e.camp||'—'}</span></td>
       <td>${e.media}</td><td style="font-size:11px;color:var(--text2)">${e.corp}</td><td>${e.buyer||'—'}</td>
       <td class="r">1</td><td>${e.date}</td>
+      <td>${vatBadge}</td>
       <td class="r">${W(e.amt)}</td>
-      <td class="r">${vatType==='zero'?'<span style="font-size:11px;color:var(--text3)">영세율</span>':vatType==='exempt'?'<span style="font-size:11px;color:var(--text3)">면세</span>':W(vat)}</td>
+      <td class="r">${vt==='zero'?'<span style="font-size:11px;color:var(--text3)">영세율</span>':vt==='exempt'?'<span style="font-size:11px;color:var(--text3)">면세</span>':W(vat)}</td>
       <td class="r">${W(e.amt+vat)}</td></tr>`;
   }).join('');
-  el('q-sub-ex').textContent=W(sA);el('q-sub-vat').textContent=vatType==='taxable'?W(vatAmt):vatLabel;el('q-sub-in').textContent=W(sA+vatAmt);
+  el('q-sub-ex').textContent=W(sA);el('q-sub-vat').textContent=W(sVat);el('q-sub-in').textContent=W(sA+sVat);
   el('q-trunc').textContent=W(trunc(sA))+'원 (VAT별도)';el('q-tfoot').style.display='';
 }
 
 function dlQuote(){
-  const entries=getEntries(gv('q-exec-sel'));
+  const entries=getEntriesMulti();
   if(!entries.length){alert('항목이 없습니다.');return;}
-  const vatType=gv('q-vat-type'),vatRate=vatType==='taxable'?0.1:0;
-  const vatLabel=vatType==='taxable'?'과세(10%)':vatType==='zero'?'영세율(0%)':'면세';
-  const rows=[['품목','매체명','공급하는자','공급받는자','수량','청구일','광고료(VAT별도)',`부가세(${vatLabel})`,'합계(VAT포함)']];
-  entries.forEach(e=>{const vat=Math.round(e.amt*vatRate);rows.push([e.camp||'',e.media,e.corp,e.buyer||'',1,e.date,e.amt,vat,e.amt+vat]);});
-  const sA=entries.reduce((s,e)=>s+e.amt,0);const vatA=Math.round(sA*vatRate);
-  rows.push(['소계','','','','','',sA,vatA,sA+vatA]);
+  const defaultVat=gv('q-vat-type');
+  const vatLabels={'taxable':'과세(10%)','zero':'영세율(0%)','exempt':'면세'};
+  const rows=[['품목','매체명','공급하는자','공급받는자','수량','청구일','부가세구분','광고료(VAT별도)','부가세','합계(VAT포함)']];
+  entries.forEach(e=>{
+    const vt=e.vatType||defaultVat;
+    const vat=Math.round(e.amt*(vt==='taxable'?0.1:0));
+    rows.push([e.camp||'',e.media,e.corp,e.buyer||'',1,e.date,vatLabels[vt],e.amt,vat,e.amt+vat]);
+  });
+  const sA=entries.reduce((s,e)=>s+e.amt,0);
+  const sV=entries.reduce((s,e)=>s+Math.round(e.amt*((e.vatType||defaultVat)==='taxable'?0.1:0)),0);
+  rows.push(['소계','','','','','','',sA,sV,sA+sV]);
   rows.push([`제안 견적 (천원단위 절사·VAT별도)：${trunc(sA).toLocaleString()}원`]);
-  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:12},{wch:20},{wch:24},{wch:16},{wch:6},{wch:12},{wch:14},{wch:14},{wch:14}];
+  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:12},{wch:20},{wch:24},{wch:16},{wch:6},{wch:12},{wch:10},{wch:14},{wch:12},{wch:14}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'광고주청구견적서');
   const dt=new Date();XLSX.writeFile(wb,`광고주청구견적서_${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}.xlsx`);
 }

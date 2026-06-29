@@ -1,0 +1,2633 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>광고비 정산 시스템 v2 — SPG&FLWR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase SDK v9 compat (CDN) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+// ══════════════════════════════════════════════
+//  Firebase 설정 — Firebase Console에서 발급한
+//  프로젝트 설정 > 웹 앱 > firebaseConfig 붙여넣기
+// ══════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCPKH8cMSVqS1VTvinyCLsLiFj3kUprFY8",
+  authDomain:        "spgnflwr-settlement.firebaseapp.com",
+  databaseURL:       "https://spgnflwr-settlement-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "spgnflwr-settlement",
+  storageBucket:     "spgnflwr-settlement.firebasestorage.app",
+  messagingSenderId: "727812072408",
+  appId:             "1:727812072408:web:c1340ac4a9df8063db48ad",
+  measurementId:     "G-PHG8JS55ZG"
+};
+
+// ══════════════════════════════════════════════
+//  비밀번호 설정 (간단 패스워드 보호)
+//  빈 문자열이면 보호 없음
+// ══════════════════════════════════════════════
+const APP_PASSWORD = "spgnflwr2026";
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;background:#F7F7F5;color:#1A1A1A;font-size:14px;line-height:1.5}
+:root{
+  --surface:#fff;--surface2:#F2F2F0;--surface3:#EAEAE8;
+  --border:#E0E0DC;--border2:#CACAC6;
+  --text:#1A1A1A;--text2:#666;--text3:#AAA;
+  --blue:#185FA5;--blue-bg:#EBF4FF;--blue-text:#0C447C;
+  --green:#0F6E56;--green-bg:#E1F5EE;--green-text:#085041;
+  --purple:#534AB7;--purple-bg:#EEEDFE;--purple-text:#3C3489;
+  --amber:#BA7517;--amber-bg:#FAEEDA;--amber-text:#633806;
+  --red:#A32D2D;--red-bg:#FCEBEB;--red-text:#791F1F;
+  --r:8px;--rl:12px
+}
+.app{display:flex;height:100vh;overflow:hidden}
+
+/* SIDEBAR */
+.sb{width:210px;min-width:210px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.sb-logo{padding:.75rem 1.2rem 1rem;border-bottom:1px solid var(--border);margin-bottom:.5rem}
+.sb-logo .co{font-size:13px;font-weight:700}
+.sb-logo .sv{font-size:11px;color:var(--text3);margin-top:2px}
+.nav-sec{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.5px;padding:.7rem 1.2rem .25rem;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:8px;padding:.5rem 1.2rem;font-size:13px;color:var(--text2);cursor:pointer;border-left:2px solid transparent;transition:all .12s;user-select:none}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--blue-bg);color:var(--blue-text);border-left-color:var(--blue);font-weight:500}
+.nav-item i{font-size:15px;width:16px;flex-shrink:0}
+
+/* MAIN */
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:.65rem 1.5rem;display:flex;align-items:center;gap:.75rem;flex-shrink:0}
+.topbar-title{font-size:15px;font-weight:600}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:.75rem}
+.content{flex:1;overflow-y:auto;padding:1.5rem}
+
+/* PANEL */
+.panel{display:none}.panel.active{display:block}
+.pg-title{font-size:16px;font-weight:600;margin-bottom:1.25rem;display:flex;align-items:center;gap:.75rem}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:1.25rem;margin-bottom:1rem}
+.card-hd{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.4px;text-transform:uppercase;margin-bottom:.9rem;display:flex;align-items:center;justify-content:space-between}
+
+/* FORM */
+.fg{display:grid;gap:10px}
+.fg2{grid-template-columns:1fr 1fr}
+.fg3{grid-template-columns:1fr 1fr 1fr}
+.fg4{grid-template-columns:1fr 1fr 1fr 1fr}
+.fspan2{grid-column:span 2}
+.fspan3{grid-column:span 3}
+.fspan4{grid-column:1/-1}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11px;font-weight:600;color:var(--text2)}
+.field input,.field select,.field textarea{height:34px;border:1px solid var(--border);border-radius:var(--r);padding:0 .65rem;font-size:13px;color:var(--text);background:var(--surface);font-family:inherit;outline:none;width:100%;transition:border .12s}
+.field textarea{height:auto;padding:.5rem .65rem;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue)}
+.field input[readonly]{background:var(--surface2);color:var(--text2)}
+.hint{font-size:11px;color:var(--text3);margin-top:3px}
+
+/* BUTTONS */
+.btn{height:34px;padding:0 .9rem;font-size:13px;font-weight:500;border:1px solid var(--border2);border-radius:var(--r);background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap;text-decoration:none}
+.btn:hover{background:var(--surface2)}
+.btn.pri{background:var(--text);color:#fff;border-color:var(--text)}.btn.pri:hover{opacity:.85}
+.btn.sec{background:var(--blue-bg);color:var(--blue-text);border-color:transparent}
+.btn.dan{background:var(--red-bg);color:var(--red-text);border-color:transparent}
+.btn.sm{height:28px;font-size:12px;padding:0 .6rem}
+.btn.xs{height:24px;font-size:11px;padding:0 .5rem}
+.btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--rl)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:.5rem .7rem;text-align:left;font-size:11px;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2)}
+td{padding:.5rem .7rem;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.data-row:hover td{background:#FAFAFA}
+.tr-foot td{font-weight:600;background:var(--surface2)}
+.tr-foot2 td{font-size:11px;color:var(--text2);background:var(--surface2)}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+.icon-btn{background:none;border:none;cursor:pointer;padding:3px;border-radius:4px;display:inline-flex;align-items:center;color:var(--text3);transition:all .1s}
+.icon-btn:hover.edit{background:var(--blue-bg);color:var(--blue-text)}
+.icon-btn:hover.del{background:var(--red-bg);color:var(--red-text)}
+
+/* BADGE */
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap}
+.b-cable{background:var(--green-bg);color:var(--green-text)}
+.b-bc{background:#EAF3DE;color:#27500A}
+.b-act{background:var(--purple-bg);color:var(--purple-text)}
+.b-act-bc{background:#F4C0D1;color:#72243E}
+.b-camp{background:var(--amber-bg);color:var(--amber-text)}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1.25rem}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1rem}
+.kpi-l{font-size:11px;color:var(--text2);margin-bottom:6px}
+.kpi-v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi.bl{background:var(--blue-bg)}.kpi.bl .kpi-l{color:var(--blue)}.kpi.bl .kpi-v{color:var(--blue-text)}
+
+/* SUB TABS */
+.sub-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.25rem}
+.sub-tab{padding:.5rem 1rem;font-size:13px;font-weight:500;color:var(--text2);border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.sub-tab.active{color:var(--text);border-bottom-color:var(--text)}
+.sub-panel{display:none}.sub-panel.active{display:block}
+
+/* RULE CHIPS */
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;border-radius:20px;font-weight:600}
+
+/* EXECUTION CARD */
+.exec-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:1.25rem;margin-bottom:1rem;cursor:pointer;transition:border .12s}
+.exec-card:hover{border-color:var(--blue)}
+.exec-card.active{border-color:var(--blue);border-width:2px}
+.exec-meta{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.exec-title{font-size:15px;font-weight:600}
+.exec-sub{font-size:12px;color:var(--text2)}
+.exec-actions{margin-left:auto;display:flex;gap:6px}
+
+/* MODAL overlay */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--rl);padding:1.5rem;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;position:relative}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:1.25rem}
+.modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;color:var(--text2);font-size:18px;line-height:1}
+
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--rl);padding:1.5rem;text-align:center;cursor:pointer;transition:border .15s}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--blue)}
+.upload-zone i{font-size:28px;color:var(--text3);display:block;margin-bottom:.5rem}
+
+/* EMPTY */
+.empty{padding:2.5rem;text-align:center;color:var(--text3);font-size:13px}
+
+/* PREVIEW box */
+.calc-preview{background:var(--surface2);border-radius:var(--r);padding:.85rem 1rem;margin-top:1rem;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.cp-label{font-size:11px;color:var(--text2);margin-bottom:4px}
+.cp-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+
+@media(max-width:640px){.sb{display:none}.fg2,.fg3,.fg4{grid-template-columns:1fr}}
+
+/* ── Firebase UI ── */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;background:#1A1A1A;color:#fff;font-size:13px;padding:.7rem 1.1rem;border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;gap:.6rem;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;max-width:320px}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.ok{background:#0F6E56}
+.toast.err{background:#A32D2D}
+.toast.info{background:var(--blue)}
+
+.sync-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--green-bg);color:var(--green-text);font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.sync-badge.saving{background:var(--amber-bg);color:var(--amber-text)}
+.sync-badge.err{background:var(--red-bg);color:var(--red-text)}
+
+.db-loader{position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+.db-loader .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.db-loader p{font-size:13px;color:var(--text2)}
+
+.login-wrap{position:fixed;inset:0;background:var(--surface2);display:flex;align-items:center;justify-content:center;z-index:600}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:2rem;width:340px;text-align:center}
+.login-box h2{font-size:16px;font-weight:700;margin-bottom:.3rem}
+.login-box p{font-size:12px;color:var(--text2);margin-bottom:1.25rem}
+.login-box input{width:100%;height:38px;border:1px solid var(--border);border-radius:var(--r);padding:0 .75rem;font-size:14px;font-family:inherit;outline:none;margin-bottom:.75rem;text-align:center;letter-spacing:.1em}
+.login-box input:focus{border-color:var(--blue)}
+.login-err{font-size:12px;color:var(--red-text);margin-top:-.4rem;margin-bottom:.5rem;display:none}
+</style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-box">
+    <h2>SPG&FLWR 정산 시스템</h2>
+    <p>접근 비밀번호를 입력해주세요</p>
+    <input type="password" id="login-pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-err" id="login-err">비밀번호가 맞지 않습니다.</div>
+    <button class="btn pri" style="width:100%;height:38px;font-size:14px" onclick="doLogin()">입력</button>
+  </div>
+</div>
+
+<!-- DB 로딩 화면 -->
+<div class="db-loader" id="db-loader" style="display:none">
+  <div class="spinner"></div>
+  <p id="db-loader-msg">Firebase 연결 중...</p>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+<div class="app">
+
+<!-- SIDEBAR -->
+<nav class="sb">
+  <div class="sb-logo">
+    <div class="co">SPG&FLWR 정산</div>
+    <div class="sv">광고비 정산 시스템 v2</div>
+    <div style="margin-top:.5rem"><span class="sync-badge" id="sync-badge">● 연결 중</span></div>
+  </div>
+  <div class="nav-sec">마스터</div>
+  <div class="nav-item active" onclick="go('dim')" id="nav-dim"><i class="ti ti-database"></i>채널·지불처</div>
+  <div class="nav-item" onclick="go('camps')" id="nav-camps"><i class="ti ti-tag"></i>품목(캠페인) 관리</div>
+  <div class="nav-item" onclick="go('dist')" id="nav-dist"><i class="ti ti-arrows-split"></i>수수료 배분율 설정</div>
+  <div class="nav-sec">집행 관리</div>
+  <div class="nav-item" onclick="go('exec')" id="nav-exec"><i class="ti ti-file-text"></i>집행건 관리</div>
+  <div class="nav-sec">출력</div>
+  <div class="nav-item" onclick="go('quote')" id="nav-quote"><i class="ti ti-file-invoice"></i>광고주 청구 견적서</div>
+  <div class="nav-item" onclick="go('purchase')" id="nav-purchase"><i class="ti ti-receipt-2"></i>수수료 매입·수익 내역</div>
+  <div class="nav-item" onclick="go('fee-in')" id="nav-fee-in"><i class="ti ti-coin"></i>수수료(매입) 청구금액 확인</div>
+  <div class="nav-item" onclick="go('fee-out')" id="nav-fee-out"><i class="ti ti-file-description"></i>수수료(매출) 발행요청서</div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="topbar-title">채널·지불처</span>
+    <div class="topbar-right">
+      <div style="font-size:12px;color:var(--text2)">위수탁자: <b>㈜스프링앤플라워</b></div>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- ═══════════════ 1. DIM ═══════════════ -->
+    <div id="panel-dim" class="panel active">
+      <div class="pg-title">채널·지불처 디멘션 테이블</div>
+      <div class="sub-tabs">
+        <button class="sub-tab active" onclick="stab('dim','bulk',this)">일괄 입력</button>
+        <button class="sub-tab" onclick="stab('dim','single',this)">개별 입력</button>
+        <button class="sub-tab" onclick="stab('dim','list',this)">등록 목록</button>
+      </div>
+
+      <!-- 일괄 -->
+      <div id="dim-bulk" class="sub-panel active">
+        <div class="card">
+          <div class="card-hd">엑셀 업로드</div>
+          <div class="upload-zone" id="xl-dz" onclick="el('xl-fi').click()" ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="onXlDrop(event)">
+            <i class="ti ti-table-import"></i>
+            <div style="font-size:14px;font-weight:500;color:var(--text2);margin-bottom:.25rem">엑셀 파일을 끌어다 놓거나 클릭</div>
+            <div style="font-size:12px;color:var(--text3)">.xlsx / .xls / .csv</div>
+            <input id="xl-fi" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onXlFile(this)">
+          </div>
+          <div id="xl-preview" style="display:none;margin-top:1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+              <span style="font-size:12px;font-weight:600;color:var(--text2)">미리보기 <span id="xl-cnt">0</span>행</span>
+              <button class="btn sm" onclick="resetXl()">취소</button>
+            </div>
+            <div class="tbl-wrap" style="max-height:220px;overflow-y:auto"><table><thead><tr id="xl-th"></tr></thead><tbody id="xl-tb"></tbody></table></div>
+            <div class="btn-row" style="margin-top:.75rem">
+              <button class="btn pri" onclick="regXlRows()"><i class="ti ti-circle-check"></i>등록 (<span id="xl-reg-cnt">0</span>건)</button>
+            </div>
+          </div>
+          <div style="margin:1rem 0;display:flex;align-items:center;gap:.75rem"><div style="flex:1;height:1px;background:var(--border)"></div><span style="font-size:11px;color:var(--text3)">또는</span><div style="flex:1;height:1px;background:var(--border)"></div></div>
+          <div class="field">
+            <label>CSV 직접 입력 (매체명, 법인명, 사업자번호, 유형(cable/broadcast), 담당자, 이메일, 전화, 비고)</label>
+            <textarea id="csv-in" rows="4" placeholder="BBS, (재)불교방송, 000-00-00000, cable, 홍길동, h@bbs.co.kr, 02-000-0000,&#10;KBS Drama, 한국방송공사, 000-00-00001, broadcast, 김철수, k@kbs.co.kr,,"></textarea>
+          </div>
+          <div class="btn-row" style="margin-top:.75rem">
+            <button class="btn pri" onclick="parseCsv()"><i class="ti ti-upload"></i>CSV 등록</button>
+            <button class="btn" onclick="dlTemplate()"><i class="ti ti-download"></i>엑셀 템플릿</button>
+            <button class="btn" onclick="el('csv-in').value=''">초기화</button>
+          </div>
+        </div>
+        <div class="card" style="background:var(--surface2)">
+          <div style="font-size:12px;color:var(--text2)"><b>컬럼 순서:</b> A매체명* / B법인명* / C사업자번호 / D유형(cable·broadcast) / E담당자 / F이메일 / G전화 / H비고<br>
+          수수료율은 법인명+유형으로 자동 결정 — 액티브인터내셔널코리아: 기본 + 역량지원금 3% 자동 적용</div>
+        </div>
+      </div>
+
+      <!-- 개별 -->
+      <div id="dim-single" class="sub-panel">
+        <div class="card">
+          <div class="card-hd">채널 개별 등록 / 수정</div>
+          <input type="hidden" id="d-edit-id" value="">
+          <div class="fg fg3">
+            <div class="field"><label>매체명 *</label><input id="d-media" placeholder="예: KBS Drama"></div>
+            <div class="field"><label>지불처(법인명) *</label><input id="d-corp" placeholder="예: 한국방송공사" oninput="dimFeePreview()"></div>
+            <div class="field"><label>사업자등록번호</label><input id="d-brn" placeholder="000-00-00000" oninput="dimFeePreview()"></div>
+          </div>
+          <div class="fg fg3" style="margin-top:10px">
+            <div class="field">
+              <label>매체 유형 *</label>
+              <select id="d-type" onchange="dimFeePreview()">
+                <option value="cable">케이블</option>
+                <option value="broadcast">지상파</option>
+              </select>
+            </div>
+            <div class="field"><label>세금계산서 담당자</label><input id="d-contact" placeholder="담당자명"></div>
+            <div class="field"><label>담당자 이메일</label><input id="d-email" placeholder="tax@corp.co.kr"></div>
+          </div>
+          <div class="fg fg3" style="margin-top:10px">
+            <div class="field"><label>담당자 전화</label><input id="d-tel" placeholder="02-0000-0000"></div>
+            <div class="field fspan2"><label>비고</label><input id="d-note"></div>
+          </div>
+          <!-- 수수료율 입력 -->
+          <div style="margin-top:10px;background:var(--surface2);border-radius:var(--r);padding:.9rem 1rem">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
+              수수료율 설정
+              <span style="font-weight:400;color:var(--text3)">(지불처·사업자번호 입력 시 자동 결정 — 직접 수정 가능)</span>
+            </div>
+            <div class="fg fg3">
+              <div class="field">
+                <label style="color:var(--blue-text)">기본 수수료율 (%)</label>
+                <input id="d-base-rate" type="number" min="0" max="100" step="0.1" style="text-align:right;font-weight:600;color:var(--blue-text)" placeholder="15.0" oninput="dimRateManualEdit()">
+                <span class="hint">케이블 15% / 지상파 13.5%</span>
+              </div>
+              <div class="field">
+                <label style="color:var(--purple-text)">역량지원금율 (%) <span style="font-weight:400;font-size:10px;color:var(--text3)">세금계산서 별도</span></label>
+                <input id="d-extra-rate" type="number" min="0" max="100" step="0.1" style="text-align:right;font-weight:600;color:var(--purple-text)" placeholder="0" oninput="dimRateManualEdit()">
+                <span class="hint">액티브인터내쇼날: +3% / 해당없으면 0</span>
+              </div>
+              <div class="field">
+                <label>합계 수수료율</label>
+                <input id="d-total-rate" readonly style="font-weight:700;color:var(--text);text-align:right;background:var(--surface)">
+                <span class="hint" id="d-rate-hint" style="color:var(--green-text)"></span>
+              </div>
+            </div>
+          </div>
+          <!-- 파일 첨부 -->
+          <div style="margin-top:10px;border:1px dashed var(--border2);border-radius:var(--r);padding:.9rem 1rem">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.6rem">사업자등록증 사본</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <label class="btn"><i class="ti ti-paperclip"></i>파일 선택<input id="d-brn-fi" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="onBrnFile(this)"></label>
+              <span id="d-brn-fn" style="font-size:12px;color:var(--text2)">선택 없음</span>
+              <span style="font-size:11px;color:var(--text3);margin-left:auto">PDF·JPG·PNG 10MB↓</span>
+            </div>
+            <div id="d-brn-prev" style="display:none;margin-top:.6rem">
+              <img id="d-brn-img" style="max-height:110px;border-radius:6px;border:1px solid var(--border)">
+              <span id="d-brn-pdf" style="display:none;font-size:12px;color:var(--red-text);padding:.3rem .6rem;background:var(--red-bg);border-radius:6px"></span>
+              <button class="btn sm dan" onclick="clearBrnFile()" style="margin-left:.5rem"><i class="ti ti-x" style="font-size:12px"></i></button>
+            </div>
+          </div>
+          <!-- 통장사본 -->
+          <div style="margin-top:10px;border:1px dashed var(--border2);border-radius:var(--r);padding:.9rem 1rem">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.6rem">통장 사본</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <label class="btn"><i class="ti ti-credit-card"></i>파일 선택<input id="d-acc-fi" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="onAccFile(this)"></label>
+              <span id="d-acc-fn" style="font-size:12px;color:var(--text2)">선택 없음</span>
+            </div>
+            <div id="d-acc-prev" style="display:none;margin-top:.6rem">
+              <img id="d-acc-img" style="max-height:110px;border-radius:6px;border:1px solid var(--border)">
+              <span id="d-acc-pdf" style="display:none;font-size:12px;color:var(--red-text);padding:.3rem .6rem;background:var(--red-bg);border-radius:6px"></span>
+              <button class="btn sm dan" onclick="clearAccFile()" style="margin-left:.5rem"><i class="ti ti-x" style="font-size:12px"></i></button>
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:1rem">
+            <button class="btn pri" onclick="saveDim()"><i class="ti ti-check"></i><span id="d-save-lbl">등록</span></button>
+            <button class="btn" onclick="cancelDimEdit()">취소</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 목록 -->
+      <div id="dim-list" class="sub-panel">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>매체명</th><th>지불처(법인)</th><th>사업자번호</th>
+              <th>유형</th>
+              <th class="r" style="color:var(--blue-text)">기본<br>수수료율</th>
+              <th class="r" style="color:var(--purple-text)">역량<br>지원금율</th>
+              <th>담당자</th><th>이메일</th><th>전화</th><th>비고</th>
+              <th>사업자등록증</th><th>통장사본</th><th style="width:72px;text-align:center">관리</th>
+            </tr></thead>
+            <tbody id="dim-tbody"><tr><td colspan="14" class="empty">등록된 채널이 없습니다</td></tr></tbody>
+          </table>
+        </div>
+        <div class="btn-row" style="margin-top:.75rem">
+          <button class="btn" onclick="stab('dim','single',qsa('#panel-dim .sub-tab')[1]);newDimForm()">+ 개별 추가</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 2. CAMPS ═══════════════ -->
+    <div id="panel-camps" class="panel">
+      <div class="pg-title">품목(캠페인) 관리</div>
+
+      <!-- ① SPG 서류 카드 -->
+      <div style="background:var(--blue-bg);border:1px solid #B5D4F4;border-radius:var(--rl);padding:1.1rem 1.25rem;margin-bottom:1.25rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--blue-text)">㈜스프링앤플라워 — 공급자 서류</div>
+            <div style="font-size:11px;color:var(--blue);margin-top:2px">사업자번호 344-88-00529 · 대표 김도겸, 김명수</div>
+          </div>
+          <button class="btn sm sec" onclick="openModal('modal-spg')"><i class="ti ti-upload" style="font-size:12px"></i>서류 업로드</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <div style="background:var(--surface);border-radius:var(--r);padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:3px">사업자등록증</div>
+              <div id="spg-brn-status" style="font-size:12px;color:var(--text3)">미업로드</div>
+            </div>
+            <button id="spg-brn-dl" class="btn sm" onclick="dlSpgFile('brn')" style="display:none"><i class="ti ti-download" style="font-size:12px"></i>다운</button>
+          </div>
+          <div style="background:var(--surface);border-radius:var(--r);padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:3px">통장 사본</div>
+              <div id="spg-acc-status" style="font-size:12px;color:var(--text3)">미업로드</div>
+            </div>
+            <button id="spg-acc-dl" class="btn sm" onclick="dlSpgFile('acc')" style="display:none"><i class="ti ti-download" style="font-size:12px"></i>다운</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 광고주 섹션 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <div style="font-size:13px;font-weight:600">광고주(공급받는자) <span id="byr-cnt" style="font-size:12px;font-weight:400;color:var(--text3)"></span></div>
+        <button class="btn pri" onclick="openByrModal()"><i class="ti ti-plus"></i>광고주 추가</button>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:1.5rem">
+        <table>
+          <thead><tr>
+            <th>#</th><th>광고주명</th><th>사업자번호</th><th>비고</th>
+            <th>사업자등록증</th><th>통장사본</th><th style="width:72px;text-align:center">관리</th>
+          </tr></thead>
+          <tbody id="buyer-tbody"><tr><td colspan="7" class="empty">등록된 광고주가 없습니다</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- ③ 품목 섹션 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <div style="font-size:13px;font-weight:600">품목(캠페인) <span id="camp-cnt" style="font-size:12px;font-weight:400;color:var(--text3)"></span></div>
+        <button class="btn pri" onclick="openCampModal()"><i class="ti ti-plus"></i>품목 추가</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>품목명</th><th>광고주</th><th>비고</th>
+            <th>사업자등록증</th><th style="width:72px;text-align:center">관리</th>
+          </tr></thead>
+          <tbody id="camp-tbody"><tr><td colspan="6" class="empty">등록된 품목이 없습니다</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 3. EXEC ═══════════════ -->
+    <div id="panel-exec" class="panel">
+      <div class="pg-title">
+        집행건 관리
+        <button class="btn pri" onclick="openNewExec()"><i class="ti ti-plus"></i>새 집행건</button>
+      </div>
+
+      <!-- 집행건 목록 -->
+      <div id="exec-list-view">
+        <div id="exec-cards"><div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:3rem">집행건이 없습니다. 새 집행건을 만들어주세요.</div></div>
+      </div>
+
+      <!-- 집행건 상세 -->
+      <div id="exec-detail-view" style="display:none">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem">
+          <button class="btn sm" onclick="backToExecList()"><i class="ti ti-arrow-left" style="font-size:13px"></i>목록</button>
+          <div>
+            <div style="font-size:15px;font-weight:600" id="ed-title"></div>
+            <div style="font-size:12px;color:var(--text2)" id="ed-sub"></div>
+          </div>
+        </div>
+
+        <div class="chips">
+          <span class="chip b-cable">케이블 기본 15%</span>
+          <span class="chip b-bc">지상파 기본 13.5%</span>
+          <span class="chip b-act">액티브 케이블 15%+3%</span>
+          <span class="chip b-act-bc">액티브 지상파 13.5%+3%</span>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:1rem;padding:.5rem .75rem;background:var(--surface2);border-radius:var(--r)">역량지원금(+3%)은 지불처가 액티브인터내셔널코리아인 경우 자동 적용 — 세금계산서 별도 발행 항목</div>
+
+        <!-- 입력 폼 -->
+        <div class="card" id="entry-form-card">
+          <div class="card-hd"><span id="ef-title">항목 추가</span><button class="btn sm" onclick="cancelEntryEdit()" id="ef-cancel-btn" style="display:none">취소</button></div>
+          <input type="hidden" id="ef-edit-id" value="">
+          <input type="hidden" id="ef-brn-hidden" value="">
+          <div class="fg fg3">
+            <div class="field">
+              <label>매체 선택 (디멘션)</label>
+              <select id="ef-dim" onchange="onDimSel()"><option value="">— 선택 —</option></select>
+            </div>
+            <div class="field"><label>매체명 *</label><input id="ef-media" placeholder="매체명"></div>
+            <div class="field"><label>공급하는자(법인)</label><input id="ef-corp" placeholder="자동 또는 수동" oninput="calcEntryPreview()"></div>
+          </div>
+          <div class="fg fg4" style="margin-top:10px">
+            <div class="field">
+              <label>매체 유형</label>
+              <select id="ef-type" onchange="calcEntryPreview()">
+                <option value="cable">케이블</option>
+                <option value="broadcast">지상파</option>
+              </select>
+            </div>
+            <div class="field"><label>기본수수료율 (자동)</label><input id="ef-br" readonly></div>
+            <div class="field"><label>역량지원금율 (액티브)</label><input id="ef-er" readonly></div>
+            <div class="field"><label>청구일</label><input id="ef-date" placeholder="예: 7월31일"></div>
+          </div>
+          <div class="fg fg3" style="margin-top:10px">
+            <div class="field"><label>광고료 (VAT별도, 원) *</label><input id="ef-amt" type="number" style="text-align:right" placeholder="0" oninput="calcEntryPreview()"></div>
+            <div class="field fspan2"><label>비고</label><input id="ef-note"></div>
+          </div>
+          <div class="calc-preview">
+            <div><div class="cp-label">광고료 VAT포함</div><div class="cp-val" id="cp-amt">—</div></div>
+            <div><div class="cp-label">기본수수료 (VAT별도)</div><div class="cp-val" id="cp-base">—</div></div>
+            <div><div class="cp-label" style="color:var(--purple-text)">역량지원금 (VAT별도)</div><div class="cp-val" style="color:var(--purple-text)" id="cp-extra">—</div></div>
+            <div><div class="cp-label" style="color:var(--blue)">수수료합계 (VAT별도)</div><div class="cp-val" style="color:var(--blue-text)" id="cp-total">—</div></div>
+          </div>
+          <div class="btn-row" style="margin-top:.85rem">
+            <button class="btn pri" onclick="saveEntry()"><i class="ti ti-check"></i><span id="ef-save-lbl">항목 추가</span></button>
+            <button class="btn" onclick="resetEntryForm()">초기화</button>
+            <button class="btn sec" onclick="openEntryXl()"><i class="ti ti-table-import"></i>엑셀로 일괄 추가</button>
+          </div>
+        </div>
+
+        <!-- 내역 테이블 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+          <div style="font-size:12px;font-weight:600;color:var(--text2)">입력 내역 <span id="ec-cnt">0</span>건</div>
+          <div class="btn-row">
+            <button class="btn sm dan" onclick="clearAllEntries()"><i class="ti ti-trash" style="font-size:12px"></i>전체삭제</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>매체명</th><th>공급하는자</th><th>유형</th><th>청구일</th>
+              <th class="r">광고료<br>VAT별도</th><th class="r">광고료<br>VAT포함</th>
+              <th class="r" style="color:var(--blue-text)">기본수수료<br>VAT별도</th>
+              <th class="r" style="color:var(--purple-text)">역량지원금<br>VAT별도</th>
+              <th class="r">수수료합계<br>VAT별도</th><th class="r">수수료합계<br>VAT포함</th>
+              <th style="width:80px;text-align:center">관리</th>
+            </tr></thead>
+            <tbody id="entry-tbody"><tr><td colspan="12" class="empty">입력된 항목이 없습니다</td></tr></tbody>
+            <tfoot id="entry-tfoot" style="display:none">
+              <tr class="tr-foot">
+                <td colspan="5">합계</td>
+                <td class="r" id="ft-amt-ex">—</td><td class="r" id="ft-amt-in">—</td>
+                <td class="r" id="ft-base">—</td><td class="r" id="ft-extra">—</td>
+                <td class="r" id="ft-tot">—</td><td class="r" id="ft-tot-in">—</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 4. QUOTE ═══════════════ -->
+    <div id="panel-quote" class="panel">
+      <div class="pg-title">광고주 청구 견적서</div>
+      <div class="card">
+        <div class="card-hd">출력 옵션</div>
+        <div class="fg fg3">
+          <div class="field">
+            <label>집행건 선택</label>
+            <select id="q-exec-sel" onchange="renderQuote()"><option value="">전체 합산</option></select>
+          </div>
+          <div class="field">
+            <label>부가세 구분</label>
+            <select id="q-vat-type" onchange="renderQuote()">
+              <option value="taxable">과세 (10%)</option>
+              <option value="zero">영세율 (0%)</option>
+              <option value="exempt">면세</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>비고 (견적서 하단)</label>
+            <input id="q-remark" placeholder="추가 문구">
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:.75rem">
+          <button class="btn pri" onclick="dlQuote()"><i class="ti ti-download"></i>엑셀 다운로드</button>
+          <button class="btn" onclick="renderQuote()"><i class="ti ti-refresh"></i>새로고침</button>
+        </div>
+      </div>
+      <div class="kpis" id="q-kpi"></div>
+      <div class="card" style="padding:.75rem 1.25rem;margin-bottom:.75rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;font-size:13px">
+          <div style="display:flex;flex-direction:column;gap:.3rem">
+            <div style="display:flex;gap:.5rem"><span style="color:var(--text2);width:70px">제출처</span><b id="qh-buyer"></b></div>
+            <div style="display:flex;gap:.5rem"><span style="color:var(--text2);width:70px">작업기간</span><span id="qh-period"></span></div>
+            <div style="display:flex;gap:.5rem"><span style="color:var(--text2);width:70px">부가세</span><span id="qh-vat"></span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.3rem">
+            <div style="display:flex;gap:.5rem"><span style="color:var(--text2);width:70px">공급자</span><b>㈜스프링앤플라워</b></div>
+            <div style="display:flex;gap:.5rem"><span style="color:var(--text2);width:70px">등록번호</span><span>344-88-00529</span></div>
+            <div style="display:flex;gap:.5rem"><span style="color:var(--text2);width:70px">대표자</span><span>김도겸, 김명수</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>품목</th><th>매체명</th><th>공급하는자</th><th>공급받는자</th>
+            <th class="r">수량</th><th>청구일</th>
+            <th class="r">광고료(VAT별도)</th><th class="r" id="q-vat-hd">부가세(10%)</th><th class="r">합계(VAT포함)</th>
+          </tr></thead>
+          <tbody id="q-tbody"><tr><td colspan="9" class="empty">집행 항목이 없습니다</td></tr></tbody>
+          <tfoot id="q-tfoot" style="display:none">
+            <tr class="tr-foot"><td colspan="6">소계</td><td class="r" id="q-sub-ex">—</td><td class="r" id="q-sub-vat">—</td><td class="r" id="q-sub-in">—</td></tr>
+            <tr class="tr-foot2"><td colspan="6">제안 견적 (천원단위 절사, VAT별도)</td><td class="r" id="q-trunc" colspan="3">—</td></tr>
+          </tfoot>
+        </table>
+      </div>
+      <div style="margin-top:.75rem;font-size:12px;color:var(--text3);padding:.65rem .9rem;background:var(--surface2);border-radius:var(--r)">※ 본 견적서는 수수료를 제외한 광고료 기준입니다. 부가세 별도 금액입니다. -끝-</div>
+    </div>
+
+    <!-- ═══════════════ 5. PURCHASE ═══════════════ -->
+    <div id="panel-purchase" class="panel">
+      <div class="pg-title">수수료 매입 청구 내역서</div>
+
+      <!-- 집행건 선택 (공통) -->
+      <div class="card">
+        <div class="fg fg2">
+          <div class="field"><label>집행건</label><select id="pu-exec-sel" onchange="renderPurchase()"><option value="">전체 합산</option></select></div>
+        </div>
+      </div>
+
+      <!-- 탭 -->
+      <div class="sub-tabs">
+        <button class="sub-tab active" onclick="puTab('fee',this)">① 수수료 발생 내역</button>
+        <button class="sub-tab" onclick="puTab('split',this)">② 수익 배분 내역</button>
+      </div>
+
+      <!-- 탭 1: 수수료 발생 내역 -->
+      <div id="pu-fee" class="sub-panel active">
+        <div class="kpis" id="pu-kpi"></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>품목</th><th>매체명</th><th>청구대상(법인)</th><th>유형</th>
+              <th class="r">광고료<br>VAT별도</th>
+              <th class="r" style="color:var(--blue-text)">기본<br>수수료율</th>
+              <th class="r" style="color:var(--blue-text)">기본수수료<br>VAT별도</th>
+              <th class="r" style="color:var(--purple-text)">역량<br>지원금율</th>
+              <th class="r" style="color:var(--purple-text)">역량지원금<br>VAT별도</th>
+              <th class="r">수수료합계<br>VAT별도</th>
+              <th class="r">수수료합계<br>VAT포함</th>
+            </tr></thead>
+            <tbody id="pu-tbody"><tr><td colspan="11" class="empty">집행 항목이 없습니다</td></tr></tbody>
+            <tfoot id="pu-tfoot" style="display:none">
+              <tr class="tr-foot"><td colspan="4">합계</td>
+                <td class="r" id="pu-amt">—</td><td></td>
+                <td class="r" id="pu-base">—</td><td></td>
+                <td class="r" id="pu-extra">—</td>
+                <td class="r" id="pu-tot">—</td><td class="r" id="pu-tot-in">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div style="margin-top:.75rem;font-size:12px;color:var(--text3)">※ 역량지원금(+3%)은 배분 대상 제외, SPG&FLWR 100% 귀속. 세금계산서 별도 발행.</div>
+      </div>
+
+      <!-- 탭 2: 수익 배분 내역 -->
+      <div id="pu-split" class="sub-panel">
+        <div class="kpis" id="pu-split-kpi"></div>
+
+        <!-- 배분 요약 카드 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+          <!-- DTV 수령 -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">
+            <div style="padding:.75rem 1rem;background:var(--surface2);font-size:12px;font-weight:600;color:var(--text2)">DTV코리아 수령액</div>
+            <div style="padding:1rem">
+              <div style="font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:.3rem" id="split-dtv-total">—</div>
+              <div style="font-size:11px;color:var(--text3)">기본수수료 배분분 (역량지원금 제외)</div>
+            </div>
+          </div>
+          <!-- SF 수령 -->
+          <div style="background:var(--blue-bg);border:1px solid #B5D4F4;border-radius:var(--rl);overflow:hidden">
+            <div style="padding:.75rem 1rem;background:rgba(180,215,250,.3);font-size:12px;font-weight:600;color:var(--blue-text)">SPG&FLWR 수령액</div>
+            <div style="padding:1rem">
+              <div style="font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--blue-text);margin-bottom:.3rem" id="split-sf-total">—</div>
+              <div style="font-size:11px;color:var(--blue)">기본수수료 배분분 + 역량지원금 100%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>품목</th><th>매체명</th><th>청구대상(법인)</th><th>배분 기간</th>
+              <th class="r">기본수수료<br>VAT별도</th>
+              <th class="r" style="color:var(--text2)">배분율<br>DTV</th>
+              <th class="r" style="color:var(--text2)">배분율<br>SF</th>
+              <th class="r">DTV<br>배분액</th>
+              <th class="r" style="color:var(--blue-text)">SF<br>배분액</th>
+              <th class="r" style="color:var(--purple-text)">역량지원금<br>(SF 100%)</th>
+              <th class="r" style="color:var(--blue-text);font-weight:700">SF<br>수익합계</th>
+            </tr></thead>
+            <tbody id="pu-split-tbody"><tr><td colspan="11" class="empty">집행 항목이 없습니다</td></tr></tbody>
+            <tfoot id="pu-split-tfoot" style="display:none">
+              <tr class="tr-foot">
+                <td colspan="4">합계</td>
+                <td class="r" id="ps-base-tot">—</td>
+                <td></td><td></td>
+                <td class="r" id="ps-dtv-tot">—</td>
+                <td class="r" id="ps-sf-base-tot">—</td>
+                <td class="r" id="ps-extra-tot">—</td>
+                <td class="r" id="ps-sf-tot">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div style="margin-top:.75rem;font-size:12px;color:var(--text3)">※ 배분율은 품목별 설정 기준 자동 적용 | 역량지원금은 SPG&FLWR 100% 귀속 | 배분율 변경은 수수료 배분 메뉴에서 설정</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 6. DIST ═══════════════ -->
+    <div id="panel-dist" class="panel">
+      <div class="pg-title">수수료 배분율 설정</div>
+
+      <!-- 배분율 설정 카드 -->
+      <div class="card">
+        <div class="card-hd">품목별 배분율 설정 <span style="font-weight:400;color:var(--text3);font-size:11px">— 변경 시 수수료 매입·수익 내역에 즉시 반영</span></div>
+        <div style="overflow-x:auto">
+          <table style="min-width:480px">
+            <thead><tr>
+              <th>품목</th><th>기간 조건</th>
+              <th class="r">DTV 배분율</th><th class="r">SF 배분율</th><th class="r">합계</th>
+              <th style="width:40px"></th>
+            </tr></thead>
+            <tbody id="share-tbody"></tbody>
+          </table>
+        </div>
+        <div class="btn-row" style="margin-top:.65rem">
+          <button class="btn sm" onclick="addShareRule()"><i class="ti ti-plus"></i>규칙 추가</button>
+        </div>
+        <div class="hint" style="margin-top:.5rem">※ 기본수수료만 배분 대상 | 역량지원금(+3%)은 배분 제외 — SPG&FLWR 100% 귀속</div>
+      </div>
+
+      <!-- 배분 현황 KPI -->
+      <div class="kpis" id="dist-kpi"></div>
+
+      <!-- 배분 내역 카드 -->
+      <div id="dist-cards"></div>
+
+      <!-- DTV 세금계산서 안내서 -->
+      <div style="margin-top:2rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <div>
+            <div style="font-size:15px;font-weight:600">광고주 세금계산서 발행 안내서</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">DTV코리아 → ㈜스프링앤플라워 앞 발행 기준</div>
+          </div>
+          <button class="btn sm" onclick="renderTaxGuide()"><i class="ti ti-refresh" style="font-size:12px"></i>새로고침</button>
+        </div>
+        <div style="font-size:12px;color:var(--text3);padding:.6rem .9rem;background:var(--surface2);border-radius:var(--r);margin-bottom:1rem">
+          ※ 본 안내서는 DTV코리아가 스프링앤플라워에 발행해야 할 세금계산서 금액 기준입니다. 광고료와 수수료 배분분을 포함합니다.
+        </div>
+
+        <!-- 안내서 본문 -->
+        <div id="tax-guide-wrap">
+          <div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:2rem">집행 항목을 먼저 입력하면 안내서가 생성됩니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 7. FEE-IN: 수수료(매입) 청구금액 확인 ═══════════════ -->
+    <div id="panel-fee-in" class="panel">
+      <div class="pg-title">수수료(매입) 청구금액 확인</div>
+      <div style="font-size:12px;color:var(--text2);padding:.65rem .9rem;background:var(--surface2);border-radius:var(--r);margin-bottom:1.25rem;line-height:1.6">
+        광고주(DTV코리아 등)가 ㈜스프링앤플라워에 세금계산서를 발행해야 하는 수수료 금액 확인서입니다.<br>
+        기본수수료 × DTV 배분율 기준으로 산출됩니다.
+      </div>
+
+      <!-- 집행건 선택 -->
+      <div class="card">
+        <div class="fg fg2">
+          <div class="field"><label>집행건</label>
+            <select id="fi-exec-sel" onchange="renderFeeIn()"><option value="">전체 합산</option></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpis" id="fi-kpi"></div>
+
+      <!-- 품목별 내역 -->
+      <div id="fi-cards"></div>
+    </div>
+
+    <!-- ═══════════════ 8. FEE-OUT: 수수료(매출) 세금계산서 발행요청서 ═══════════════ -->
+    <div id="panel-fee-out" class="panel">
+      <div class="pg-title">수수료(매출) 세금계산서 발행요청서</div>
+      <div style="font-size:12px;color:var(--text2);padding:.65rem .9rem;background:var(--surface2);border-radius:var(--r);margin-bottom:1.25rem;line-height:1.6">
+        <b>정의</b>: ㈜스프링앤플라워가 각 지불처(매체사 법인)에 발행해야 하는 수수료 세금계산서 요청 내역입니다.<br>
+        기본수수료·역량지원금은 별도 세금계산서 — 지불처별로 합산 표시
+      </div>
+
+      <!-- 집행건 선택 -->
+      <div class="card">
+        <div class="fg fg3">
+          <div class="field"><label>집행건</label>
+            <select id="fo-exec-sel" onchange="renderFeeOut()"><option value="">전체 합산</option></select>
+          </div>
+          <div class="field"><label>발행 기준월</label>
+            <input id="fo-bill-month" type="text" placeholder="예: 2026년 4월" oninput="renderFeeOut()">
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpis" id="fo-kpi"></div>
+
+      <!-- 지불처별 발행 카드 -->
+      <div id="fo-cards"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- MODAL: 새 집행건 -->
+<div class="modal-bg" id="modal-new-exec">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-new-exec')"><i class="ti ti-x"></i></button>
+    <div class="modal-title">새 집행건 만들기</div>
+    <div class="fg fg2">
+      <div class="field"><label>광고주(공급받는자) *</label><input id="ne-buyer" placeholder="예: DTV코리아"></div>
+      <div class="field"><label>집행연월 *</label><input id="ne-month" type="month" value="2026-06"></div>
+    </div>
+    <div class="fg fg2" style="margin-top:10px">
+      <div class="field">
+        <label>품목(캠페인) *</label>
+        <select id="ne-camp"><option value="">— 선택 —</option></select>
+      </div>
+      <div class="field"><label>비고</label><input id="ne-note"></div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn pri" onclick="createExec()"><i class="ti ti-plus"></i>집행건 생성</button>
+      <button class="btn" onclick="closeModal('modal-new-exec')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 엑셀 업로드 (항목) -->
+<div class="modal-bg" id="modal-entry-xl">
+  <div class="modal" style="width:700px">
+    <button class="modal-close" onclick="closeModal('modal-entry-xl')"><i class="ti ti-x"></i></button>
+    <div class="modal-title">집행 항목 엑셀 업로드</div>
+    <div class="upload-zone" id="exi-dz" onclick="el('exi-fi').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="onExiDrop(event)">
+      <i class="ti ti-table-import"></i>
+      <div style="font-size:13px;color:var(--text2)">엑셀 파일 끌어다 놓기 또는 클릭</div>
+      <input id="exi-fi" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onExiFile(this)">
+    </div>
+    <div id="exi-preview" style="display:none;margin-top:1rem">
+      <div style="display:flex;justify-content:space-between;margin-bottom:.5rem">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">미리보기 <span id="exi-cnt">0</span>행</span>
+        <button class="btn sm" onclick="resetExiXl()">취소</button>
+      </div>
+      <div class="tbl-wrap" style="max-height:220px;overflow-y:auto"><table><thead><tr id="exi-th"></tr></thead><tbody id="exi-tb"></tbody></table></div>
+      <div class="btn-row" style="margin-top:.75rem">
+        <button class="btn pri" onclick="regExiRows()"><i class="ti ti-circle-check"></i>등록 (<span id="exi-reg-cnt">0</span>건)</button>
+      </div>
+    </div>
+    <div style="margin-top:1rem;padding:.75rem 1rem;background:var(--surface2);border-radius:var(--r);font-size:12px;color:var(--text2)">
+      <b>컬럼 순서:</b> A매체명* / B법인명* / C유형(cable·broadcast) / D광고료(VAT별도)* / E청구일 / F비고<br>
+      법인명으로 수수료율 자동 결정. 액티브인터내셔널코리아 입력 시 역량지원금 자동 적용.
+    </div>
+    <div class="btn-row" style="margin-top:.75rem">
+      <button class="btn sm" onclick="dlEntryTemplate()"><i class="ti ti-download"></i>항목 엑셀 템플릿</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SPG 서류 업로드 -->
+<div class="modal-bg" id="modal-spg">
+  <div class="modal" style="width:520px">
+    <button class="modal-close" onclick="closeModal('modal-spg')"><i class="ti ti-x"></i></button>
+    <div class="modal-title">㈜스프링앤플라워 — 서류 업로드</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:1rem">사업자번호 344-88-00529 · 대표 김도겸, 김명수</div>
+    <div style="display:flex;flex-direction:column;gap:.85rem">
+      <div style="border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.5rem">사업자등록증</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <label class="btn sm"><i class="ti ti-paperclip"></i>파일 선택<input id="spg-brn-fi" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="onSpgFile(this,'brn')"></label>
+          <span id="spg-brn-fn" style="font-size:12px;color:var(--text2)">선택 없음</span>
+          <button id="spg-brn-dl2" class="btn sm sec" onclick="dlSpgFile('brn')" style="display:none;margin-left:auto"><i class="ti ti-download" style="font-size:12px"></i>현재파일 다운</button>
+        </div>
+        <div id="spg-brn-prev" style="display:none;margin-top:.5rem">
+          <img id="spg-brn-img" style="max-height:90px;border-radius:6px;border:1px solid var(--border)">
+          <span id="spg-brn-pdf" style="display:none;font-size:12px;color:var(--red-text);padding:.25rem .5rem;background:var(--red-bg);border-radius:6px"></span>
+          <button class="btn xs dan" onclick="clearSpgFile('brn')" style="margin-left:.5rem"><i class="ti ti-x" style="font-size:11px"></i>제거</button>
+        </div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.5rem">통장 사본</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <label class="btn sm"><i class="ti ti-credit-card"></i>파일 선택<input id="spg-acc-fi" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="onSpgFile(this,'acc')"></label>
+          <span id="spg-acc-fn" style="font-size:12px;color:var(--text2)">선택 없음</span>
+          <button id="spg-acc-dl2" class="btn sm sec" onclick="dlSpgFile('acc')" style="display:none;margin-left:auto"><i class="ti ti-download" style="font-size:12px"></i>현재파일 다운</button>
+        </div>
+        <div id="spg-acc-prev" style="display:none;margin-top:.5rem">
+          <img id="spg-acc-img" style="max-height:90px;border-radius:6px;border:1px solid var(--border)">
+          <span id="spg-acc-pdf" style="display:none;font-size:12px;color:var(--red-text);padding:.25rem .5rem;background:var(--red-bg);border-radius:6px"></span>
+          <button class="btn xs dan" onclick="clearSpgFile('acc')" style="margin-left:.5rem"><i class="ti ti-x" style="font-size:11px"></i>제거</button>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn pri" onclick="closeModal('modal-spg')"><i class="ti ti-check"></i>완료</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 광고주 등록/수정 -->
+<div class="modal-bg" id="modal-byr">
+  <div class="modal" style="width:540px">
+    <button class="modal-close" onclick="closeModal('modal-byr')"><i class="ti ti-x"></i></button>
+    <div class="modal-title" id="byr-modal-title">광고주 등록</div>
+    <input type="hidden" id="byr-edit-id" value="">
+    <div class="fg fg2">
+      <div class="field"><label>광고주명 *</label><input id="byr-name" placeholder="예: DTV코리아"></div>
+      <div class="field"><label>사업자등록번호</label><input id="byr-brn" placeholder="000-00-00000"></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>비고</label><input id="byr-note"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem">
+      <div style="border:1px solid var(--border);border-radius:var(--r);padding:.75rem 1rem">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.5rem">사업자등록증</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <label class="btn sm"><i class="ti ti-paperclip"></i>파일 선택<input id="byr-brn-fi" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="onByrFile(this,'brn')"></label>
+          <span id="byr-brn-fn" style="font-size:12px;color:var(--text2)">선택 없음</span>
+        </div>
+        <div id="byr-brn-prev" style="display:none;margin-top:.4rem">
+          <img id="byr-brn-img" style="max-height:70px;border-radius:6px;border:1px solid var(--border)">
+          <span id="byr-brn-pdf" style="display:none;font-size:11px;color:var(--red-text);padding:.2rem .4rem;background:var(--red-bg);border-radius:5px"></span>
+          <button class="btn xs dan" onclick="clearByrFileInModal('brn')" style="margin-left:.4rem"><i class="ti ti-x" style="font-size:11px"></i></button>
+        </div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:var(--r);padding:.75rem 1rem">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.5rem">통장 사본</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <label class="btn sm"><i class="ti ti-credit-card"></i>파일 선택<input id="byr-acc-fi" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="onByrFile(this,'acc')"></label>
+          <span id="byr-acc-fn" style="font-size:12px;color:var(--text2)">선택 없음</span>
+        </div>
+        <div id="byr-acc-prev" style="display:none;margin-top:.4rem">
+          <img id="byr-acc-img" style="max-height:70px;border-radius:6px;border:1px solid var(--border)">
+          <span id="byr-acc-pdf" style="display:none;font-size:11px;color:var(--red-text);padding:.2rem .4rem;background:var(--red-bg);border-radius:5px"></span>
+          <button class="btn xs dan" onclick="clearByrFileInModal('acc')" style="margin-left:.4rem"><i class="ti ti-x" style="font-size:11px"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn pri" onclick="saveBuyer()"><i class="ti ti-check"></i><span id="byr-save-lbl">등록</span></button>
+      <button class="btn" onclick="closeModal('modal-byr');clearByrForm()">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 품목 등록/수정 -->
+<div class="modal-bg" id="modal-camp">
+  <div class="modal" style="width:480px">
+    <button class="modal-close" onclick="closeModal('modal-camp')"><i class="ti ti-x"></i></button>
+    <div class="modal-title" id="camp-modal-title">품목 추가</div>
+    <input type="hidden" id="c-edit-id" value="">
+    <div class="fg fg2">
+      <div class="field"><label>품목명 *</label><input id="c-name" placeholder="예: 그린피스"></div>
+      <div class="field">
+        <label>광고주(공급받는자)</label>
+        <select id="c-buyer-sel" style="height:34px;border:1px solid var(--border);border-radius:var(--r);padding:0 .65rem;font-size:13px;font-family:inherit;outline:none;background:var(--surface);color:var(--text)">
+          <option value="">— 선택 —</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>비고</label><input id="c-note"></div>
+    <div style="border:1px solid var(--border);border-radius:var(--r);padding:.75rem 1rem;margin-top:1rem">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:.5rem">사업자등록증 <span style="font-weight:400;color:var(--text3)">(해당 시)</span></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label class="btn sm"><i class="ti ti-paperclip"></i>파일 선택<input id="c-brn-fi" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="onCampFile(this)"></label>
+        <span id="c-brn-fn" style="font-size:12px;color:var(--text2)">선택 없음</span>
+      </div>
+      <div id="c-brn-prev" style="display:none;margin-top:.4rem">
+        <img id="c-brn-img" style="max-height:70px;border-radius:6px;border:1px solid var(--border)">
+        <span id="c-brn-pdf" style="display:none;font-size:11px;color:var(--red-text);padding:.2rem .4rem;background:var(--red-bg);border-radius:5px"></span>
+        <button class="btn xs dan" onclick="clearCampFileInModal()" style="margin-left:.4rem"><i class="ti ti-x" style="font-size:11px"></i></button>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn pri" onclick="saveCamp()"><i class="ti ti-check"></i><span id="camp-save-lbl">추가</span></button>
+      <button class="btn" onclick="closeModal('modal-camp');clearCampForm()">취소</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── CONSTANTS ── */
+// 액티브인터내셔널 법인명 변형 모두 매칭 (사업자번호 120-87-73429 기준)
+const ACTIVE_KEYWORDS = ['액티브인터내셔널코리아','액티브인터내쇼날','액티브 인터내셔널','active international'];
+const ACTIVE_BRN = '120-87-73429';
+function isActiveCorp(corp, brn){
+  const c=(corp||'').toLowerCase().replace(/\s/g,'');
+  if((brn||'').replace(/-/g,'')===ACTIVE_BRN.replace(/-/g,'')) return true;
+  return ACTIVE_KEYWORDS.some(kw=>c.includes(kw.toLowerCase().replace(/\s/g,'')));
+}
+const W  = v => Math.round(Number(v)||0).toLocaleString('ko-KR');
+const el = id => document.getElementById(id);
+const qsa = s => document.querySelectorAll(s);
+const gv = id => (el(id)||{}).value||'';
+const trunc = v => Math.floor(v/1000)*1000;
+
+function getFee(corp, mediaType, brn){
+  const isAct = isActiveCorp(corp, brn);
+  const isBc  = mediaType === 'broadcast';
+  if(isAct && isBc) return {base:.135,extra:.03,label:'액티브 지상파',badge:'b-act-bc',bs:'13.5%',es:'+3%'};
+  if(isAct)         return {base:.15, extra:.03,label:'액티브 케이블',badge:'b-act',   bs:'15%',  es:'+3%'};
+  if(isBc)          return {base:.135,extra:0,  label:'지상파',       badge:'b-bc',    bs:'13.5%',es:'—'};
+                    return {base:.15, extra:0,  label:'케이블',        badge:'b-cable', bs:'15%',  es:'—'};
+}
+
+// 채널 디멘션의 커스텀 수수료율 우선 적용
+function getDimFee(dim){
+  const auto=getFee(dim.corp,dim.mediaType,dim.brn||'');
+  const base = dim.customBase!=null ? dim.customBase/100 : auto.base;
+  const extra = dim.customExtra!=null ? dim.customExtra/100 : auto.extra;
+  // label·badge는 자동 결정 기준 유지
+  return {...auto, base, extra,
+    bs:(base*100).toFixed(1)+'%',
+    es:extra>0?'+'+(extra*100).toFixed(0)+'%':'—'};
+}
+
+/* ── STATE ── */
+let dims = [
+  {id:1, media:'BBS',           corp:'(재) 불교방송',                brn:'105-82-04476',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+  {id:2, media:'KBS Drama',     corp:'액티브인터내쇼날 주식회사',    brn:'120-87-73429',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+  {id:3, media:'KBS JOY',       corp:'액티브인터내쇼날 주식회사',    brn:'120-87-73429',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+  {id:4, media:'Channel A Plus',corp:'액티브인터내쇼날 주식회사',    brn:'120-87-73429',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+  {id:5, media:'MBC every1',    corp:'액티브인터내셔널 주식회사',    brn:'120-87-73429',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+  {id:6, media:'SBS Biz',       corp:'액티브인터내셔날 주식회사',    brn:'120-87-73429',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+  {id:7, media:'K star',        corp:'(주) 초록뱀미디어',            brn:'220-81-52270',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+  {id:8, media:'Lifetime',      corp:'라이프타임채널코리아 유한회사', brn:'211-87-61914',  mediaType:'cable',     contact:'',email:'',tel:'',note:'', brnFile:null,accFile:null},
+];
+let did = 9;  // 다음 dim ID
+
+let camps = [], execs = [], activeExecId = null;
+let shareRules = [
+  {id:1,camp:'그린피스',period:'~2026-05',dtv:70,sf:30},
+  {id:2,camp:'그린피스',period:'2026-06~',dtv:80,sf:20},
+  {id:3,camp:'동물자유연대',period:'전체',dtv:80,sf:20},
+  {id:4,camp:'WFP',period:'전체',dtv:80,sf:20},
+  {id:5,camp:'플랜코리아',period:'전체',dtv:80,sf:20},
+];
+let cid=1,xid=1,eid_=1,sid_=10;
+
+/* temp file state for dim form */
+let tmpBrnFile=null, tmpAccFile=null;
+/* temp xl rows */
+let xlRows=[],exiRows=[];
+
+/* ── NAV ── */
+const PG_TITLES={dim:'채널·지불처',camps:'품목(캠페인) 관리',exec:'집행건 관리',quote:'광고주 청구 견적서',purchase:'수수료 매입·수익 내역',dist:'수수료 배분율 설정','fee-in':'수수료(매입) 청구금액 확인','fee-out':'수수료(매출) 세금계산서 발행요청서'};
+function go(page){
+  qsa('.panel').forEach(p=>p.classList.remove('active'));
+  qsa('.nav-item').forEach(n=>n.classList.remove('active'));
+  el('panel-'+page).classList.add('active');
+  el('nav-'+page).classList.add('active');
+  el('topbar-title').textContent=PG_TITLES[page];
+  if(page==='quote'){syncExecSels();renderQuote();}
+  if(page==='purchase'){syncExecSels();renderPurchase();}
+  if(page==='dist'){renderDist();}
+  if(page==='fee-in'){syncExecSels();renderFeeIn();}
+  if(page==='fee-out'){syncExecSels();renderFeeOut();}
+}
+
+function stab(panel,id,btn){
+  qsa('#panel-'+panel+' .sub-tab').forEach(t=>t.classList.remove('active'));
+  qsa('#panel-'+panel+' .sub-panel').forEach(p=>p.classList.remove('active'));
+  if(btn)btn.classList.add('active'); else qsa('#panel-'+panel+' .sub-tab')[0].classList.add('active');
+  el(panel+'-'+id).classList.add('active');
+  if(id==='list')renderDimTable();
+}
+
+function openModal(id){el(id).classList.add('open');}
+function closeModal(id){el(id).classList.remove('open');}
+
+/* ── SPG 서류 ── */
+let spgFiles = {brn:null, acc:null};
+
+function onSpgFile(inp, type){
+  const file=inp.files[0]; if(!file) return;
+  if(file.size>10*1024*1024){alert('10MB 이하만 가능합니다.');return;}
+  const isPdf=file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    spgFiles[type]={name:file.name,type:file.type,data:e.target.result,isPdf};
+    el('spg-'+type+'-fn').textContent=file.name;
+    el('spg-'+type+'-dl2').style.display='inline-flex';
+    const prev=el('spg-'+type+'-prev'); prev.style.display='block';
+    if(isPdf){el('spg-'+type+'-img').style.display='none';el('spg-'+type+'-pdf').style.display='inline-block';el('spg-'+type+'-pdf').textContent=file.name;}
+    else{el('spg-'+type+'-img').style.display='inline-block';el('spg-'+type+'-pdf').style.display='none';el('spg-'+type+'-img').src=e.target.result;}
+    // 카드 상태 업데이트
+    el('spg-'+type+'-status').textContent=file.name;
+    el('spg-'+type+'-status').style.color='var(--green-text)';
+    el('spg-'+type+'-dl').style.display='inline-flex';
+  };
+  reader.readAsDataURL(file);
+}
+function dlSpgFile(type){
+  const f=spgFiles[type]; if(!f) return;
+  const a=document.createElement('a');a.href=f.data;a.download=f.name;a.click();
+}
+function clearSpgFile(type){
+  spgFiles[type]=null;
+  el('spg-'+type+'-fi').value='';el('spg-'+type+'-fn').textContent='선택 없음';
+  el('spg-'+type+'-dl2').style.display='none';el('spg-'+type+'-prev').style.display='none';
+  el('spg-'+type+'-status').textContent='미업로드';el('spg-'+type+'-status').style.color='var(--text3)';
+  el('spg-'+type+'-dl').style.display='none';
+}
+
+/* ── BUYERS (광고주) ── */
+let buyers=[], bid=1;
+let tmpByrBrn=null, tmpByrAcc=null;
+
+function openByrModal(editId){
+  clearByrForm();
+  if(editId){
+    const b=buyers.find(x=>x.id===editId);if(!b)return;
+    el('byr-edit-id').value=editId;el('byr-modal-title').textContent='광고주 수정';el('byr-save-lbl').textContent='저장';
+    el('byr-name').value=b.name;el('byr-brn').value=b.brn||'';el('byr-note').value=b.note||'';
+    if(b.brnFile){tmpByrBrn={...b.brnFile};el('byr-brn-fn').textContent=b.brnFile.name;showModalFilePreview('byr-brn',b.brnFile);}
+    if(b.accFile){tmpByrAcc={...b.accFile};el('byr-acc-fn').textContent=b.accFile.name;showModalFilePreview('byr-acc',b.accFile);}
+  } else {
+    el('byr-edit-id').value='';el('byr-modal-title').textContent='광고주 등록';el('byr-save-lbl').textContent='등록';
+  }
+  openModal('modal-byr');
+}
+
+function onByrFile(inp, type){
+  const file=inp.files[0]; if(!file) return;
+  const isPdf=file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const fd={name:file.name,type:file.type,data:e.target.result,isPdf};
+    if(type==='brn'){tmpByrBrn=fd;el('byr-brn-fn').textContent=file.name;showModalFilePreview('byr-brn',fd);}
+    else{tmpByrAcc=fd;el('byr-acc-fn').textContent=file.name;showModalFilePreview('byr-acc',fd);}
+  };
+  reader.readAsDataURL(file);
+}
+
+function showModalFilePreview(prefix, fd){
+  const prev=el(prefix+'-prev'); if(!prev) return;
+  prev.style.display='block';
+  const img=el(prefix+'-img'), pdf=el(prefix+'-pdf');
+  if(img&&pdf){
+    if(fd.isPdf){img.style.display='none';pdf.style.display='inline-block';pdf.textContent=fd.name;}
+    else{img.style.display='inline-block';pdf.style.display='none';img.src=fd.data;}
+  }
+}
+
+function clearByrFileInModal(type){
+  if(type==='brn'){tmpByrBrn=null;el('byr-brn-fi').value='';el('byr-brn-fn').textContent='선택 없음';el('byr-brn-prev').style.display='none';}
+  else{tmpByrAcc=null;el('byr-acc-fi').value='';el('byr-acc-fn').textContent='선택 없음';el('byr-acc-prev').style.display='none';}
+}
+
+function saveBuyer(){
+  const name=el('byr-name').value.trim();
+  if(!name){alert('광고주명을 입력해주세요.');return;}
+  const data={name,brn:el('byr-brn').value.trim(),note:el('byr-note').value.trim(),
+    brnFile:tmpByrBrn?{...tmpByrBrn}:null, accFile:tmpByrAcc?{...tmpByrAcc}:null};
+  const editId=parseInt(el('byr-edit-id').value)||0;
+  if(editId){const i=buyers.findIndex(x=>x.id===editId);if(i>=0)buyers[i]={...buyers[i],...data};}
+  else buyers.push({id:bid++,...data});
+  closeModal('modal-byr');clearByrForm();renderBuyers();syncByrSel();
+}
+
+function delBuyer(id){if(!confirm('삭제하시겠습니까?'))return;buyers=buyers.filter(b=>b.id!==id);renderBuyers();syncByrSel();}
+
+function clearByrForm(){
+  el('byr-edit-id').value='';
+  ['byr-name','byr-brn','byr-note'].forEach(id=>el(id).value='');
+  el('byr-brn-fi').value='';el('byr-acc-fi').value='';
+  el('byr-brn-fn').textContent='선택 없음';el('byr-acc-fn').textContent='선택 없음';
+  el('byr-brn-prev').style.display='none';el('byr-acc-prev').style.display='none';
+  tmpByrBrn=null;tmpByrAcc=null;
+}
+
+function dlByrFile(id, type){
+  const b=buyers.find(x=>x.id===id);if(!b)return;
+  const f=type==='brn'?b.brnFile:b.accFile;if(!f)return;
+  const a=document.createElement('a');a.href=f.data;a.download=f.name;a.click();
+}
+
+function renderBuyers(){
+  const tb=el('buyer-tbody');
+  el('byr-cnt').textContent=buyers.length?`(${buyers.length}건)`:'';
+  if(!buyers.length){tb.innerHTML='<tr><td colspan="7" class="empty">등록된 광고주가 없습니다</td></tr>';return;}
+  tb.innerHTML=buyers.map((b,i)=>`<tr class="data-row">
+    <td style="color:var(--text3);font-size:11px">${i+1}</td>
+    <td style="font-weight:500">${b.name}</td>
+    <td style="font-size:11px">${b.brn||'—'}</td>
+    <td style="font-size:11px;color:var(--text2)">${b.note||''}</td>
+    <td>${b.brnFile?`<button class="btn xs" onclick="dlByrFile(${b.id},'brn')"><i class="ti ti-download" style="font-size:11px"></i>다운</button>`:'<span style="font-size:11px;color:var(--text3)">미첨부</span>'}</td>
+    <td>${b.accFile?`<button class="btn xs" onclick="dlByrFile(${b.id},'acc')"><i class="ti ti-download" style="font-size:11px"></i>다운</button>`:'<span style="font-size:11px;color:var(--text3)">미첨부</span>'}</td>
+    <td style="text-align:center;white-space:nowrap">
+      <button class="btn xs sec" onclick="openByrModal(${b.id})" style="margin-right:2px"><i class="ti ti-edit" style="font-size:11px"></i>수정</button>
+      <button class="btn xs dan" onclick="delBuyer(${b.id})"><i class="ti ti-x" style="font-size:11px"></i></button>
+    </td>
+  </tr>`).join('');
+}
+
+function syncByrSel(){
+  const sel=el('c-buyer-sel');
+  const defaults=['DTV코리아'];
+  const registered=buyers.map(b=>b.name);
+  const all=[...new Set([...defaults,...registered])];
+  sel.innerHTML='<option value="">— 선택 —</option>'+all.map(n=>`<option value="${n}">${n}</option>`).join('');
+}
+
+/* ── CAMPS ── */
+let tmpCampBrn=null;
+
+function openCampModal(editId){
+  clearCampForm();
+  syncByrSel();
+  if(editId){
+    const c=camps.find(x=>x.id===editId);if(!c)return;
+    el('c-edit-id').value=editId;el('camp-modal-title').textContent='품목 수정';el('camp-save-lbl').textContent='저장';
+    el('c-name').value=c.name;el('c-buyer-sel').value=c.buyer||'';el('c-note').value=c.note||'';
+    if(c.brnFile){tmpCampBrn={...c.brnFile};el('c-brn-fn').textContent=c.brnFile.name;showModalFilePreview('c-brn',c.brnFile);}
+  } else {
+    el('c-edit-id').value='';el('camp-modal-title').textContent='품목 추가';el('camp-save-lbl').textContent='추가';
+  }
+  openModal('modal-camp');
+}
+
+function onCampFile(inp){
+  const file=inp.files[0]; if(!file) return;
+  const isPdf=file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    tmpCampBrn={name:file.name,type:file.type,data:e.target.result,isPdf};
+    el('c-brn-fn').textContent=file.name;showModalFilePreview('c-brn',tmpCampBrn);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearCampFileInModal(){
+  tmpCampBrn=null;el('c-brn-fi').value='';el('c-brn-fn').textContent='선택 없음';el('c-brn-prev').style.display='none';
+}
+
+function saveCamp(){
+  const name=el('c-name').value.trim();
+  if(!name){alert('품목명을 입력해주세요.');return;}
+  const buyer=el('c-buyer-sel').value||'';
+  const data={name,buyer,note:el('c-note').value.trim(),brnFile:tmpCampBrn?{...tmpCampBrn}:null};
+  const editId=parseInt(el('c-edit-id').value)||0;
+  if(editId){const i=camps.findIndex(x=>x.id===editId);if(i>=0)camps[i]={...camps[i],...data};}
+  else camps.push({id:cid++,...data});
+  closeModal('modal-camp');clearCampForm();renderCamps();syncCampSels();
+}
+
+function delCamp(id){if(!confirm('삭제하시겠습니까?'))return;camps=camps.filter(c=>c.id!==id);renderCamps();syncCampSels();}
+
+function clearCampForm(){
+  el('c-edit-id').value='';
+  ['c-name','c-note'].forEach(id=>el(id).value='');
+  if(el('c-buyer-sel'))el('c-buyer-sel').value='';
+  el('c-brn-fi').value='';el('c-brn-fn').textContent='선택 없음';
+  if(el('c-brn-prev'))el('c-brn-prev').style.display='none';
+  tmpCampBrn=null;
+}
+
+function dlCampFile(id){
+  const c=camps.find(x=>x.id===id);if(!c||!c.brnFile)return;
+  const a=document.createElement('a');a.href=c.brnFile.data;a.download=c.brnFile.name;a.click();
+}
+
+function renderCamps(){
+  const tb=el('camp-tbody');
+  el('camp-cnt').textContent=camps.length?`(${camps.length}건)`:'';
+  if(!camps.length){tb.innerHTML='<tr><td colspan="6" class="empty">등록된 품목이 없습니다</td></tr>';return;}
+  tb.innerHTML=camps.map((c,i)=>`<tr class="data-row">
+    <td style="color:var(--text3);font-size:11px">${i+1}</td>
+    <td style="font-weight:500">${c.name}</td>
+    <td>${c.buyer||'—'}</td>
+    <td style="color:var(--text2)">${c.note||''}</td>
+    <td>${c.brnFile?`<button class="btn xs" onclick="dlCampFile(${c.id})"><i class="ti ti-download" style="font-size:11px"></i>다운</button>`:'<span style="font-size:11px;color:var(--text3)">미첨부</span>'}</td>
+    <td style="text-align:center;white-space:nowrap">
+      <button class="btn xs sec" onclick="openCampModal(${c.id})" style="margin-right:2px"><i class="ti ti-edit" style="font-size:11px"></i>수정</button>
+      <button class="btn xs dan" onclick="delCamp(${c.id})"><i class="ti ti-x" style="font-size:11px"></i></button>
+    </td>
+  </tr>`).join('');
+}
+
+function syncCampSels(){
+  const opts='<option value="">— 선택 —</option>'+camps.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  el('ne-camp').innerHTML=opts;
+}
+
+function initDefaultCamps(){
+  ['그린피스','동물자유연대','WFP','플랜코리아'].forEach(n=>{
+    camps.push({id:cid++,name:n,buyer:'DTV코리아',note:'',brnFile:null});
+  });
+  renderCamps();syncCampSels();syncByrSel();
+}
+
+/* ── DIM ── */
+function dimFeePreview(){
+  // 법인+사업자번호+유형으로 자동 결정 → 입력 필드에 반영 (수동 편집 가능)
+  const corp=el('d-corp').value, brn=el('d-brn').value, type=gv('d-type');
+  const f=getFee(corp,type,brn);
+  el('d-base-rate').value=(f.base*100).toFixed(1);
+  el('d-extra-rate').value=f.extra>0?(f.extra*100).toFixed(0):'0';
+  dimRateUpdate();
+}
+
+function dimRateManualEdit(){
+  // 수동 편집 시 합계만 갱신 (자동결정 안 함)
+  dimRateUpdate();
+}
+
+function dimRateUpdate(){
+  const base=parseFloat(el('d-base-rate').value)||0;
+  const extra=parseFloat(el('d-extra-rate').value)||0;
+  const total=base+extra;
+  el('d-total-rate').value=total.toFixed(1)+'%';
+  const hint=el('d-rate-hint');
+  if(extra>0){
+    hint.textContent=`기본 ${base}% + 역량지원금 ${extra}% (세금계산서 별도)`;
+    hint.style.color='var(--purple-text)';
+  } else {
+    hint.textContent=`기본 수수료 ${base}%`;
+    hint.style.color='var(--green-text)';
+  }
+}
+
+function newDimForm(){
+  el('d-edit-id').value='';el('d-save-lbl').textContent='등록';
+  ['d-media','d-corp','d-brn','d-contact','d-email','d-tel','d-note'].forEach(id=>el(id).value='');
+  el('d-type').value='cable';
+  el('d-base-rate').value='15.0';el('d-extra-rate').value='0';
+  clearBrnFile();clearAccFile();dimRateUpdate();
+}
+
+function editDim(id){
+  const d=dims.find(x=>x.id===id); if(!d) return;
+  el('d-edit-id').value=id; el('d-save-lbl').textContent='저장';
+  el('d-media').value=d.media; el('d-corp').value=d.corp; el('d-brn').value=d.brn||'';
+  el('d-type').value=d.mediaType||'cable';
+  el('d-contact').value=d.contact||''; el('d-email').value=d.email||'';
+  el('d-tel').value=d.tel||''; el('d-note').value=d.note||'';
+  // 커스텀 수수료율 있으면 그걸로, 없으면 자동 결정
+  const f=getFee(d.corp,d.mediaType,d.brn||'');
+  el('d-base-rate').value=d.customBase!=null?d.customBase:(f.base*100).toFixed(1);
+  el('d-extra-rate').value=d.customExtra!=null?d.customExtra:(f.extra*100).toFixed(0);
+  dimRateUpdate();
+  tmpBrnFile=d.brnFile||null; tmpAccFile=d.accFile||null;
+  showFilePreview('brn',tmpBrnFile); showFilePreview('acc',tmpAccFile);
+  stab('dim','single',qsa('#panel-dim .sub-tab')[1]);
+}
+
+function cancelDimEdit(){stab('dim','list',qsa('#panel-dim .sub-tab')[2]);newDimForm();}
+
+function saveDim(){
+  const media=el('d-media').value.trim(), corp=el('d-corp').value.trim();
+  if(!media||!corp){alert('매체명과 지불처는 필수입니다.');return;}
+  const customBase=parseFloat(el('d-base-rate').value)||null;
+  const customExtra=parseFloat(el('d-extra-rate').value)||0;
+  const data={media,corp,brn:el('d-brn').value.trim(),mediaType:gv('d-type'),
+    contact:el('d-contact').value.trim(),email:el('d-email').value.trim(),
+    tel:el('d-tel').value.trim(),note:el('d-note').value.trim(),
+    customBase, customExtra,
+    brnFile:tmpBrnFile?{...tmpBrnFile}:null, accFile:tmpAccFile?{...tmpAccFile}:null};
+  const editId=parseInt(el('d-edit-id').value)||0;
+  if(editId){const i=dims.findIndex(x=>x.id===editId);if(i>=0)dims[i]={...dims[i],...data};}
+  else dims.push({id:did++,...data});
+  renderDimTable();updateDimSel();clearBrnFile();clearAccFile();
+  // 목록 탭으로 이동하고 해당 행으로 스크롤
+  stab('dim','list',qsa('#panel-dim .sub-tab')[2]);
+  const targetId=editId||dims[dims.length-1].id;
+  setTimeout(()=>{
+    const row=el('dim-row-'+targetId);
+    if(row){row.style.background='var(--blue-bg)';row.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>row.style.background='',1800);}
+  },100);
+}
+
+function deleteDim(id){if(!confirm('삭제?'))return;dims=dims.filter(d=>d.id!==id);renderDimTable();updateDimSel();}
+
+function renderDimTable(){
+  const tb=el('dim-tbody');
+  if(!dims.length){tb.innerHTML='<tr><td colspan="14" class="empty">등록된 채널이 없습니다</td></tr>';return;}
+  tb.innerHTML=dims.map((d,i)=>{
+    const f=getDimFee(d);
+    const auto=getFee(d.corp,d.mediaType,d.brn||'');
+    const baseCustom=d.customBase!=null&&Math.abs(d.customBase-(auto.base*100))>0.05;
+    const extraCustom=d.customExtra!=null&&Math.abs(d.customExtra-(auto.extra*100))>0.05;
+    const baseStr=`<span style="font-weight:600;color:var(--blue-text)">${(f.base*100).toFixed(1)}%</span>${baseCustom?'<sup style="font-size:9px;color:var(--amber-text);margin-left:2px">▲</sup>':''}`;
+    const extraStr=f.extra>0
+      ?`<span style="color:var(--purple-text);font-weight:600">+${(f.extra*100).toFixed(0)}%</span>${extraCustom?'<sup style="font-size:9px;color:var(--amber-text);margin-left:2px">▲</sup>':''}`
+      :`<span style="color:var(--text3)">—</span>`;
+    const brnBtn=d.brnFile?`<button class="btn xs" onclick="dlFile(${d.id},'brn')"><i class="ti ti-download" style="font-size:11px"></i>다운</button>`:'<span style="font-size:11px;color:var(--text3)">미첨부</span>';
+    const accBtn=d.accFile?`<button class="btn xs" onclick="dlFile(${d.id},'acc')"><i class="ti ti-download" style="font-size:11px"></i>다운</button>`:'<span style="font-size:11px;color:var(--text3)">미첨부</span>';
+    return `<tr class="data-row" id="dim-row-${d.id}">
+      <td style="color:var(--text3);font-size:11px">${i+1}</td>
+      <td style="font-weight:500">${d.media}</td>
+      <td>${d.corp}</td>
+      <td style="font-size:11px">${d.brn||'—'}</td>
+      <td><span class="badge ${f.badge}">${f.label}</span></td>
+      <td class="r">${baseStr}</td>
+      <td class="r">${extraStr}</td>
+      <td>${d.contact||'—'}</td>
+      <td style="font-size:11px">${d.email||'—'}</td>
+      <td style="font-size:11px">${d.tel||'—'}</td>
+      <td style="font-size:11px;color:var(--text2)">${d.note||''}</td>
+      <td>${brnBtn}</td><td>${accBtn}</td>
+      <td style="white-space:nowrap;text-align:center">
+        <button class="btn xs sec" onclick="editDim(${d.id})" style="margin-right:2px"><i class="ti ti-edit" style="font-size:11px"></i>수정</button>
+        <button class="btn xs dan" onclick="deleteDim(${d.id})"><i class="ti ti-x" style="font-size:11px"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateDimSel(){
+  const sel=el('ef-dim'); const cur=sel.value;
+  sel.innerHTML='<option value="">— 선택 —</option>'+dims.map(d=>`<option value="${d.id}">${d.media} (${d.corp})</option>`).join('');
+  sel.value=cur;
+}
+
+function dlFile(dimId,type){
+  const d=dims.find(x=>x.id===dimId); if(!d) return;
+  const f=type==='brn'?d.brnFile:d.accFile; if(!f) return;
+  const a=document.createElement('a'); a.href=f.data; a.download=f.name; a.click();
+}
+
+/* file attach helpers */
+function onBrnFile(inp){handleFileInput(inp,'brn');}
+function onAccFile(inp){handleFileInput(inp,'acc');}
+function handleFileInput(inp,type){
+  const file=inp.files[0]; if(!file) return;
+  if(file.size>10*1024*1024){alert('10MB 이하 파일만 첨부 가능합니다.');return;}
+  const isPdf=file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const fd={name:file.name,type:file.type,data:e.target.result,isPdf};
+    if(type==='brn')tmpBrnFile=fd; else tmpAccFile=fd;
+    showFilePreview(type,fd);
+    if(type==='brn')el('d-brn-fn').textContent=file.name;
+    else el('d-acc-fn').textContent=file.name;
+  };
+  reader.readAsDataURL(file);
+}
+function showFilePreview(type,fd){
+  const wrap=el('d-'+type+'-prev');
+  if(!fd){if(wrap)wrap.style.display='none';return;}
+  if(wrap)wrap.style.display='block';
+  const img=el('d-'+type+'-img'), pdf=el('d-'+type+'-pdf');
+  if(img&&pdf){
+    if(fd.isPdf){img.style.display='none';pdf.style.display='inline-block';pdf.textContent=fd.name;}
+    else{img.style.display='inline-block';pdf.style.display='none';img.src=fd.data;}
+  }
+}
+function clearBrnFile(){tmpBrnFile=null;el('d-brn-fi').value='';el('d-brn-fn').textContent='선택 없음';el('d-brn-prev').style.display='none';}
+function clearAccFile(){tmpAccFile=null;el('d-acc-fi').value='';el('d-acc-fn').textContent='선택 없음';el('d-acc-prev').style.display='none';}
+
+/* ── DIM XL BULK ── */
+function onXlDrop(e){e.preventDefault();el('xl-dz').classList.remove('drag');const fi=el('xl-fi');const dt=new DataTransfer();dt.items.add(e.dataTransfer.files[0]);fi.files=dt.files;onXlFile(fi);}
+function onXlFile(inp){const f=inp.files[0];if(!f)return;const ext=f.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){const r=new FileReader();r.onload=e=>processXlData(e.target.result.split('\n').map(l=>l.split(',').map(s=>s.trim())));r.readAsText(f,'utf-8');}
+  else{const r=new FileReader();r.onload=e=>{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];processXlData(XLSX.utils.sheet_to_json(ws,{header:1,defval:''}));};r.readAsArrayBuffer(f);}
+}
+function processXlData(rows){
+  const isHdr=isNaN(rows[0]?.[0])&&String(rows[0]?.[0]||'').includes('매체');
+  const data=(isHdr?rows.slice(1):rows).filter(r=>r[0]&&r[1]);
+  xlRows=data.map(r=>({media:String(r[0]).trim(),corp:String(r[1]).trim(),brn:String(r[2]||'').trim(),
+    mediaType:String(r[3]||'').trim().includes('broadcast')?'broadcast':'cable',
+    contact:String(r[4]||'').trim(),email:String(r[5]||'').trim(),tel:String(r[6]||'').trim(),note:String(r[7]||'').trim()}));
+  if(!xlRows.length){alert('유효한 행이 없습니다.');return;}
+  el('xl-dz').style.display='none';el('xl-preview').style.display='block';
+  el('xl-cnt').textContent=xlRows.length;el('xl-reg-cnt').textContent=xlRows.length;
+  const cols=['매체명','법인명','사업자번호','유형','담당자','이메일','전화','비고'];
+  el('xl-th').innerHTML=cols.map(c=>`<th>${c}</th>`).join('');
+  el('xl-tb').innerHTML=xlRows.map(r=>{const f=getFee(r.corp,r.mediaType,r.brn||'');return`<tr><td>${r.media}</td><td>${r.corp}</td><td style="font-size:11px">${r.brn||'—'}</td><td><span class="badge ${f.badge}">${f.label}</span></td><td>${r.contact||'—'}</td><td style="font-size:11px">${r.email||'—'}</td><td style="font-size:11px">${r.tel||'—'}</td><td style="font-size:11px">${r.note||''}</td></tr>`;}).join('');
+}
+function regXlRows(){
+  xlRows.forEach(r=>dims.push({id:did++,...r,brnFile:null,accFile:null}));
+  alert(`${xlRows.length}건 등록되었습니다.`);resetXl();renderDimTable();updateDimSel();
+  stab('dim','list',qsa('#panel-dim .sub-tab')[2]);
+}
+function resetXl(){xlRows=[];el('xl-dz').style.display='block';el('xl-preview').style.display='none';el('xl-fi').value='';}
+
+function parseCsv(){
+  const lines=el('csv-in').value.split('\n').filter(l=>l.trim());let n=0;
+  lines.forEach(line=>{const p=line.split(',').map(s=>s.trim());if(p.length<2||!p[0]||!p[1])return;
+    const [media,corp,brn='',typeRaw='cable',contact='',email='',tel='',note=''] = p;
+    dims.push({id:did++,media,corp,brn,mediaType:typeRaw.includes('broadcast')?'broadcast':'cable',contact,email,tel,note,brnFile:null,accFile:null});n++;});
+  if(!n){alert('유효한 행이 없습니다.');return;}alert(`${n}건 등록.`);
+  renderDimTable();updateDimSel();stab('dim','list',qsa('#panel-dim .sub-tab')[2]);
+}
+
+function dlTemplate(){
+  const ws=XLSX.utils.aoa_to_sheet([['매체명','지불처(법인명)','사업자등록번호','매체유형','담당자명','담당자이메일','담당자전화','비고'],
+    ['BBS','(재)불교방송','000-00-00000','cable','홍길동','h@bbs.co.kr','02-000-0000',''],
+    ['KBS Drama','한국방송공사','000-00-00001','broadcast','김철수','k@kbs.co.kr','','지상파']]);
+  ws['!cols']=[{wch:20},{wch:24},{wch:16},{wch:14},{wch:12},{wch:22},{wch:16},{wch:16}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'채널_지불처');XLSX.writeFile(wb,'채널_지불처_템플릿.xlsx');
+}
+
+/* ── EXEC ── */
+function openNewExec(){
+  syncCampSels();el('ne-buyer').value='DTV코리아';el('ne-month').value='2026-06';el('ne-note').value='';
+  openModal('modal-new-exec');
+}
+
+function createExec(){
+  const buyer=el('ne-buyer').value.trim(),month=el('ne-month').value,campId=parseInt(el('ne-camp').value)||0;
+  if(!buyer||!month){alert('광고주와 집행연월은 필수입니다.');return;}
+  const camp=camps.find(c=>c.id===campId);
+  if(!camp){alert('품목을 선택해주세요.');return;}
+  const exec={id:xid++,buyer,month,campId,campName:camp.name,note:el('ne-note').value.trim(),entries:[]};
+  execs.push(exec);renderExecCards();closeModal('modal-new-exec');
+  openExecDetail(exec.id);
+}
+
+function renderExecCards(){
+  const ct=el('exec-cards');
+  if(!execs.length){ct.innerHTML='<div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:3rem">집행건이 없습니다. 새 집행건을 만들어주세요.</div>';return;}
+  ct.innerHTML=execs.map(ex=>{
+    const [y,m]=ex.month.split('-');
+    const totAmt=ex.entries.reduce((s,e)=>s+e.amt,0);
+    return `<div class="exec-card" onclick="openExecDetail(${ex.id})">
+      <div class="exec-meta">
+        <div>
+          <div class="exec-title">${ex.campName} <span style="font-weight:400;color:var(--text2);font-size:13px">— ${ex.buyer}</span></div>
+          <div class="exec-sub">${y}년 ${parseInt(m)}월 · 광고료 합계 ${W(totAmt)}원 · ${ex.entries.length}건${ex.note?' · '+ex.note:''}</div>
+        </div>
+        <div class="exec-actions" onclick="event.stopPropagation()">
+          <button class="btn sm" onclick="deleteExec(${ex.id})"><i class="ti ti-trash" style="font-size:12px"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function deleteExec(id){if(!confirm('집행건을 삭제하시겠습니까? 하위 항목도 삭제됩니다.'))return;execs=execs.filter(e=>e.id!==id);renderExecCards();}
+
+function openExecDetail(id){
+  activeExecId=id;const ex=execs.find(x=>x.id===id);if(!ex)return;
+  const [y,m]=ex.month.split('-');
+  el('ed-title').textContent=`${ex.campName} — ${ex.buyer}`;
+  el('ed-sub').textContent=`${y}년 ${parseInt(m)}월`;
+  el('exec-list-view').style.display='none';el('exec-detail-view').style.display='block';
+  updateDimSel();resetEntryForm();renderEntryTable();
+}
+
+function backToExecList(){
+  activeExecId=null;el('exec-list-view').style.display='block';el('exec-detail-view').style.display='none';
+  renderExecCards();
+}
+
+/* ── ENTRY ── */
+function getActiveExec(){return execs.find(x=>x.id===activeExecId);}
+
+function onDimSel(){
+  const id=parseInt(gv('ef-dim')); if(!id) return;
+  const d=dims.find(x=>x.id===id); if(!d) return;
+  el('ef-media').value=d.media; el('ef-corp').value=d.corp;
+  el('ef-type').value=d.mediaType||'cable';
+  el('ef-brn-hidden').value=d.brn||'';
+  calcEntryPreview();
+}
+
+function calcEntryPreview(){
+  const corp=el('ef-corp').value.trim(), type=gv('ef-type');
+  const dimId=parseInt(gv('ef-dim'))||0;
+  const dim=dims.find(x=>x.id===dimId);
+  // 디멘션 선택 시 커스텀 수수료율 우선, 아니면 자동
+  const f=dim ? getDimFee(dim) : getFee(corp,type,el('ef-brn-hidden').value);
+  el('ef-br').value=f.bs; el('ef-er').value=f.extra>0?f.es:'해당없음';
+  const amt=parseFloat(el('ef-amt').value)||0;
+  const base=Math.round(amt*f.base), extra=Math.round(amt*f.extra);
+  el('cp-amt').textContent=amt?W(Math.round(amt*1.1))+'원':'—';
+  el('cp-base').textContent=amt?W(base)+'원':'—';
+  el('cp-extra').textContent=amt&&extra?W(extra)+'원':'—';
+  el('cp-total').textContent=amt?W(base+extra)+'원':'—';
+}
+
+function saveEntry(){
+  const ex=getActiveExec(); if(!ex){alert('집행건을 선택해주세요.');return;}
+  const amt=parseFloat(el('ef-amt').value)||0, media=el('ef-media').value.trim();
+  if(!amt){alert('광고료를 입력해주세요.');return;}
+  if(!media){alert('매체명을 입력해주세요.');return;}
+  const corp=el('ef-corp').value.trim()||'—', type=gv('ef-type');
+  const dimId=parseInt(gv('ef-dim'))||0;
+  const dim=dims.find(x=>x.id===dimId);
+  const brn=el('ef-brn-hidden')?el('ef-brn-hidden').value:dim?dim.brn:'';
+  const f=dim ? getDimFee(dim) : getFee(corp,type,brn);
+  const base=Math.round(amt*f.base), extra=Math.round(amt*f.extra);
+  const editId=parseInt(el('ef-edit-id').value)||0;
+  const entry={id:eid_++,media,corp,brn,mediaType:type,feeLabel:f.label,feeBadge:f.badge,
+    date:el('ef-date').value||'—',note:el('ef-note').value,amt,base,extra,total:base+extra};
+  if(editId){const i=ex.entries.findIndex(e=>e.id===editId);if(i>=0){entry.id=editId;ex.entries[i]=entry;}}
+  else ex.entries.push(entry);
+  // 폼 카드 하이라이트 해제
+  const card=el('entry-form-card');
+  card.style.border=''; card.style.background='';
+  renderEntryTable();resetEntryForm();
+}
+
+function editEntry(entryId){
+  const ex=getActiveExec(); if(!ex) return;
+  const e=ex.entries.find(x=>x.id===entryId); if(!e) return;
+  el('ef-edit-id').value=entryId; el('ef-save-lbl').textContent='저장';
+  el('ef-title').textContent=`항목 수정 — ${e.media}`; el('ef-cancel-btn').style.display='inline-flex';
+  el('ef-media').value=e.media; el('ef-corp').value=e.corp;
+  el('ef-type').value=e.mediaType||'cable'; el('ef-date').value=e.date==='—'?'':e.date;
+  el('ef-note').value=e.note||''; el('ef-amt').value=e.amt;
+  if(el('ef-brn-hidden')) el('ef-brn-hidden').value=e.brn||'';
+  calcEntryPreview();
+  // 폼 카드 하이라이트
+  const card=el('entry-form-card');
+  card.style.border='2px solid var(--blue)';
+  card.style.background='var(--blue-bg)';
+  card.scrollIntoView({behavior:'smooth',block:'start'});
+  // 테이블 재렌더 (수정중 표시)
+  renderEntryTable();
+}
+
+function cancelEntryEdit(){
+  resetEntryForm();
+  const card=el('entry-form-card');
+  card.style.border=''; card.style.background='';
+  renderEntryTable();
+}
+
+function deleteEntry(entryId){
+  const ex=getActiveExec(); if(!ex) return;
+  ex.entries=ex.entries.filter(e=>e.id!==entryId); renderEntryTable();
+}
+
+function clearAllEntries(){
+  const ex=getActiveExec(); if(!ex||!ex.entries.length) return;
+  if(!confirm('전체 삭제?')) return; ex.entries=[]; renderEntryTable();
+}
+
+function resetEntryForm(){
+  el('ef-edit-id').value=''; el('ef-save-lbl').textContent='항목 추가';
+  el('ef-title').textContent='항목 추가'; el('ef-cancel-btn').style.display='none';
+  ['ef-media','ef-corp','ef-amt','ef-date','ef-note','ef-brn-hidden'].forEach(id=>el(id).value='');
+  el('ef-dim').value=''; el('ef-type').value='cable'; calcEntryPreview();
+}
+
+function renderEntryTable(){
+  const ex=getActiveExec(); const entries=ex?ex.entries:[];
+  el('ec-cnt').textContent=entries.length;
+  const tb=el('entry-tbody');
+  const editingId=parseInt(el('ef-edit-id').value)||0;
+  if(!entries.length){tb.innerHTML='<tr><td colspan="12" class="empty">입력된 항목이 없습니다</td></tr>';el('entry-tfoot').style.display='none';return;}
+  tb.innerHTML=entries.map((e,i)=>{
+    const f=getFee(e.corp,e.mediaType,e.brn||'');
+    const base=e.base!==undefined?e.base:Math.round(e.amt*f.base);
+    const extra=e.extra!==undefined?e.extra:Math.round(e.amt*f.extra);
+    const total=base+extra;
+    const isEditing=editingId===e.id;
+    return `<tr class="data-row" id="entry-row-${e.id}" style="${isEditing?'background:var(--blue-bg);outline:2px solid var(--blue);outline-offset:-1px;':''}">
+      <td style="color:var(--text3);font-size:11px">${i+1}</td>
+      <td style="font-weight:500">${e.media}${isEditing?'<span style="font-size:10px;color:var(--blue);margin-left:4px;font-weight:600">수정중</span>':''}</td>
+      <td style="font-size:11px;color:var(--text2)">${e.corp}</td>
+      <td><span class="badge ${f.badge}">${f.label}</span></td>
+      <td style="font-size:11px">${e.date}</td>
+      <td class="r">${W(e.amt)}</td><td class="r">${W(Math.round(e.amt*1.1))}</td>
+      <td class="r" style="color:var(--blue-text)">${W(base)}</td>
+      <td class="r" style="color:var(--purple-text)">${extra?W(extra):'—'}</td>
+      <td class="r" style="font-weight:600">${W(total)}</td>
+      <td class="r">${W(Math.round(total*1.1))}</td>
+      <td style="text-align:center;white-space:nowrap">
+        ${isEditing
+          ? `<button class="btn xs dan" onclick="cancelEntryEdit()"><i class="ti ti-x" style="font-size:11px"></i>취소</button>`
+          : `<button class="btn xs sec" onclick="editEntry(${e.id})" style="margin-right:2px"><i class="ti ti-edit" style="font-size:11px"></i>수정</button><button class="btn xs dan" onclick="deleteEntry(${e.id})"><i class="ti ti-x" style="font-size:11px"></i></button>`
+        }
+      </td>
+    </tr>`;
+  }).join('');
+  const sA=entries.reduce((s,e)=>s+e.amt,0);
+  const sB=entries.reduce((s,e)=>s+(e.base!==undefined?e.base:Math.round(e.amt*getFee(e.corp,e.mediaType,e.brn||'').base)),0);
+  const sX=entries.reduce((s,e)=>s+(e.extra!==undefined?e.extra:Math.round(e.amt*getFee(e.corp,e.mediaType,e.brn||'').extra)),0);
+  const sT=sB+sX;
+  el('ft-amt-ex').textContent=W(sA);el('ft-amt-in').textContent=W(Math.round(sA*1.1));
+  el('ft-base').textContent=W(sB);el('ft-extra').textContent=W(sX);
+  el('ft-tot').textContent=W(sT);el('ft-tot-in').textContent=W(Math.round(sT*1.1));
+  el('entry-tfoot').style.display='';
+}
+
+/* ── ENTRY XL ── */
+function openEntryXl(){openModal('modal-entry-xl');}
+function onExiDrop(e){e.preventDefault();el('exi-dz').classList.remove('drag');const fi=el('exi-fi');const dt=new DataTransfer();dt.items.add(e.dataTransfer.files[0]);fi.files=dt.files;onExiFile(fi);}
+function onExiFile(inp){const f=inp.files[0];if(!f)return;const ext=f.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){const r=new FileReader();r.onload=e=>processExiData(e.target.result.split('\n').map(l=>l.split(',').map(s=>s.trim())));r.readAsText(f,'utf-8');}
+  else{const r=new FileReader();r.onload=e=>{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];processExiData(XLSX.utils.sheet_to_json(ws,{header:1,defval:''}));};r.readAsArrayBuffer(f);}
+}
+function processExiData(rows){
+  const isHdr=isNaN(rows[0]?.[0])&&String(rows[0]?.[0]||'').includes('매체');
+  const data=(isHdr?rows.slice(1):rows).filter(r=>r[0]&&r[3]);
+  exiRows=data.map(r=>({media:String(r[0]).trim(),corp:String(r[1]||'').trim(),
+    mediaType:String(r[2]||'').trim().includes('broadcast')?'broadcast':'cable',
+    amt:parseFloat(String(r[3]).replace(/,/g,''))||0,date:String(r[4]||'').trim(),note:String(r[5]||'').trim()}));
+  if(!exiRows.length){alert('유효한 행이 없습니다.');return;}
+  el('exi-dz').style.display='none';el('exi-preview').style.display='block';
+  el('exi-cnt').textContent=exiRows.length;el('exi-reg-cnt').textContent=exiRows.length;
+  el('exi-th').innerHTML=['매체명','법인명','유형','광고료','청구일','비고'].map(c=>`<th>${c}</th>`).join('');
+  el('exi-tb').innerHTML=exiRows.map(r=>{const f=getFee(r.corp,r.mediaType,r.brn||'');return`<tr><td>${r.media}</td><td style="font-size:11px">${r.corp}</td><td><span class="badge ${f.badge}">${f.label}</span></td><td class="r">${W(r.amt)}</td><td>${r.date||'—'}</td><td style="font-size:11px">${r.note||''}</td></tr>`;}).join('');
+}
+function regExiRows(){
+  const ex=getActiveExec(); if(!ex){alert('집행건을 먼저 열어주세요.');return;}
+  exiRows.forEach(r=>{
+    const f=getFee(r.corp,r.mediaType,r.brn||'');
+    const base=Math.round(r.amt*f.base),extra=Math.round(r.amt*f.extra);
+    ex.entries.push({id:eid_++,media:r.media,corp:r.corp,brn:r.brn||'',mediaType:r.mediaType,feeLabel:f.label,feeBadge:f.badge,date:r.date||'—',note:r.note,amt:r.amt,base,extra,total:base+extra});
+  });
+  alert(`${exiRows.length}건 등록.`);resetExiXl();renderEntryTable();closeModal('modal-entry-xl');
+}
+function resetExiXl(){exiRows=[];el('exi-dz').style.display='block';el('exi-preview').style.display='none';el('exi-fi').value='';}
+
+function dlEntryTemplate(){
+  const ws=XLSX.utils.aoa_to_sheet([['매체명','법인명','유형(cable/broadcast)','광고료(VAT별도)','청구일','비고'],
+    ['BBS','(재)불교방송','cable',6500000,'4월30일',''],
+    ['KBS Drama','한국방송공사','broadcast',10000000,'4월30일','지상파']]);
+  ws['!cols']=[{wch:20},{wch:24},{wch:18},{wch:16},{wch:12},{wch:16}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'집행항목');XLSX.writeFile(wb,'집행항목_템플릿.xlsx');
+}
+
+/* ── QUOTE ── */
+function getEntries(execSel){
+  const id=parseInt(execSel)||0;
+  if(!id) return execs.flatMap(ex=>ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})));
+  const ex=execs.find(x=>x.id===id);
+  return ex?ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})):[];
+}
+
+function syncExecSels(){
+  const opts='<option value="">전체 합산</option>'+execs.map(ex=>{const [y,m]=ex.month.split('-');return`<option value="${ex.id}">${ex.campName} ${y}년${parseInt(m)}월 (${ex.buyer})</option>`;}).join('');
+  el('q-exec-sel').innerHTML=opts;
+  el('pu-exec-sel').innerHTML=opts;
+  el('fi-exec-sel').innerHTML=opts;
+  el('fo-exec-sel').innerHTML=opts;
+}
+
+function renderQuote(){
+  const entries=getEntries(gv('q-exec-sel'));
+  const vatType=gv('q-vat-type');
+  const vatRate=vatType==='taxable'?0.1:0;
+  const vatLabel=vatType==='taxable'?'과세 (10%)':vatType==='zero'?'영세율 (0%)':'면세';
+  const buyer=entries.length?entries[0].buyer:'—';
+  const months=[...new Set(entries.map(e=>e.month))];
+  const [y,m]=months.length===1?months[0].split('-'):['',''];
+  el('qh-buyer').textContent=buyer;
+  el('qh-period').textContent=months.length===1?`${y}년 ${parseInt(m)}월`:'복수 월';
+  el('qh-vat').textContent=vatLabel;
+  el('q-vat-hd').textContent=vatType==='zero'?'부가세(영세율)':vatType==='exempt'?'(면세)':'부가세(10%)';
+  const sA=entries.reduce((s,e)=>s+e.amt,0);
+  const vatAmt=Math.round(sA*vatRate);
+  el('q-kpi').innerHTML=[
+    {l:'총 광고료 (VAT별도)',v:W(sA)+'원'},
+    {l:`부가세 (${vatLabel})`,v:W(vatAmt)+'원'},
+    {l:'합계',v:W(sA+vatAmt)+'원',bl:true},
+    {l:'천원단위 절사 (VAT별도)',v:W(trunc(sA))+'원'},
+  ].map(k=>`<div class="kpi${k.bl?' bl':''}"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div></div>`).join('');
+  const tb=el('q-tbody');
+  if(!entries.length){tb.innerHTML='<tr><td colspan="9" class="empty">항목이 없습니다</td></tr>';el('q-tfoot').style.display='none';return;}
+  tb.innerHTML=entries.map(e=>{
+    const vat=Math.round(e.amt*vatRate);
+    return `<tr class="data-row"><td><span class="badge b-camp">${e.camp||'—'}</span></td>
+      <td>${e.media}</td><td style="font-size:11px;color:var(--text2)">${e.corp}</td><td>${e.buyer||'—'}</td>
+      <td class="r">1</td><td>${e.date}</td>
+      <td class="r">${W(e.amt)}</td>
+      <td class="r">${vatType==='zero'?'<span style="font-size:11px;color:var(--text3)">영세율</span>':vatType==='exempt'?'<span style="font-size:11px;color:var(--text3)">면세</span>':W(vat)}</td>
+      <td class="r">${W(e.amt+vat)}</td></tr>`;
+  }).join('');
+  el('q-sub-ex').textContent=W(sA);el('q-sub-vat').textContent=vatType==='taxable'?W(vatAmt):vatLabel;el('q-sub-in').textContent=W(sA+vatAmt);
+  el('q-trunc').textContent=W(trunc(sA))+'원 (VAT별도)';el('q-tfoot').style.display='';
+}
+
+function dlQuote(){
+  const entries=getEntries(gv('q-exec-sel'));
+  if(!entries.length){alert('항목이 없습니다.');return;}
+  const vatType=gv('q-vat-type'),vatRate=vatType==='taxable'?0.1:0;
+  const vatLabel=vatType==='taxable'?'과세(10%)':vatType==='zero'?'영세율(0%)':'면세';
+  const rows=[['품목','매체명','공급하는자','공급받는자','수량','청구일','광고료(VAT별도)',`부가세(${vatLabel})`,'합계(VAT포함)']];
+  entries.forEach(e=>{const vat=Math.round(e.amt*vatRate);rows.push([e.camp||'',e.media,e.corp,e.buyer||'',1,e.date,e.amt,vat,e.amt+vat]);});
+  const sA=entries.reduce((s,e)=>s+e.amt,0);const vatA=Math.round(sA*vatRate);
+  rows.push(['소계','','','','','',sA,vatA,sA+vatA]);
+  rows.push([`제안 견적 (천원단위 절사·VAT별도)：${trunc(sA).toLocaleString()}원`]);
+  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:12},{wch:20},{wch:24},{wch:16},{wch:6},{wch:12},{wch:14},{wch:14},{wch:14}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'광고주청구견적서');
+  const dt=new Date();XLSX.writeFile(wb,`광고주청구견적서_${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}.xlsx`);
+}
+
+/* ── PURCHASE ── */
+function puTab(id, btn){
+  qsa('#panel-purchase .sub-tab').forEach(t=>t.classList.remove('active'));
+  qsa('#panel-purchase .sub-panel').forEach(p=>p.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  el('pu-'+id).classList.add('active');
+  if(id==='split') renderPurchaseSplit();
+}
+
+function renderPurchase(){
+  const entries=getEntries(gv('pu-exec-sel'));
+  const sA=entries.reduce((s,e)=>s+e.amt,0);
+  const sB=entries.reduce((s,e)=>s+e.base,0);
+  const sX=entries.reduce((s,e)=>s+e.extra,0);
+  const sT=entries.reduce((s,e)=>s+e.total,0);
+
+  el('pu-kpi').innerHTML=[
+    {l:'총 광고료 (VAT별도)',v:W(sA)+'원'},
+    {l:'기본수수료 합계',v:W(sB)+'원'},
+    {l:'역량지원금 합계 (액티브)',v:W(sX)+'원'},
+    {l:'총수수료 (VAT별도)',v:W(sT)+'원',bl:true},
+  ].map(k=>`<div class="kpi${k.bl?' bl':''}"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div></div>`).join('');
+
+  const tb=el('pu-tbody');
+  if(!entries.length){
+    tb.innerHTML='<tr><td colspan="11" class="empty">집행 항목이 없습니다</td></tr>';
+    el('pu-tfoot').style.display='none';
+    return;
+  }
+  const f2=e=>getFee(e.corp,e.mediaType,e.brn||'');
+  tb.innerHTML=entries.map(e=>`<tr class="data-row">
+    <td><span class="badge b-camp">${e.camp||'—'}</span></td>
+    <td>${e.media}</td>
+    <td style="font-size:11px;color:var(--text2)">${e.corp}</td>
+    <td><span class="badge ${e.feeBadge}">${e.feeLabel}</span></td>
+    <td class="r">${W(e.amt)}</td>
+    <td class="r" style="color:var(--blue-text)">${f2(e).bs}</td>
+    <td class="r" style="color:var(--blue-text)">${W(e.base)}</td>
+    <td class="r" style="color:var(--purple-text)">${e.extra?f2(e).es:'—'}</td>
+    <td class="r" style="color:var(--purple-text)">${e.extra?W(e.extra):'—'}</td>
+    <td class="r" style="font-weight:600">${W(e.total)}</td>
+    <td class="r">${W(Math.round(e.total*1.1))}</td>
+  </tr>`).join('');
+  el('pu-amt').textContent=W(sA);el('pu-base').textContent=W(sB);
+  el('pu-extra').textContent=W(sX);el('pu-tot').textContent=W(sT);
+  el('pu-tot-in').textContent=W(Math.round(sT*1.1));
+  el('pu-tfoot').style.display='';
+
+  // 탭2도 같이 갱신
+  renderPurchaseSplit();
+}
+
+function renderPurchaseSplit(){
+  const entries=getEntries(gv('pu-exec-sel'));
+  if(!entries.length){
+    el('pu-split-tbody').innerHTML='<tr><td colspan="11" class="empty">집행 항목이 없습니다</td></tr>';
+    el('pu-split-tfoot').style.display='none';
+    el('split-dtv-total').textContent='—';el('split-sf-total').textContent='—';
+    el('pu-split-kpi').innerHTML='';
+    return;
+  }
+
+  let totBase=0,totDTV=0,totSFBase=0,totExtra=0;
+
+  const rows=entries.map(e=>{
+    const camp=e.camp||'';
+    const month=e.month||'';
+    const rule=getShareRule(camp,month);
+    const base=e.base||0;
+    const extra=e.extra||0;
+    const dtvAmt=Math.round(base*rule.dtv/100);
+    const sfBaseAmt=Math.round(base*rule.sf/100);
+    const sfTotal=sfBaseAmt+extra; // 역량지원금 SF 100%
+
+    totBase+=base;totDTV+=dtvAmt;totSFBase+=sfBaseAmt;totExtra+=extra;
+    return {e,rule,base,extra,dtvAmt,sfBaseAmt,sfTotal};
+  });
+
+  const totSFTotal=totSFBase+totExtra;
+
+  el('split-dtv-total').textContent=W(totDTV)+'원';
+  el('split-sf-total').textContent=W(totSFTotal)+'원';
+
+  el('pu-split-kpi').innerHTML=[
+    {l:'기본수수료 합계',v:W(totBase)+'원'},
+    {l:'DTV코리아 배분액',v:W(totDTV)+'원'},
+    {l:'SF 기본수수료 배분',v:W(totSFBase)+'원'},
+    {l:'역량지원금 (SF 100%)',v:W(totExtra)+'원'},
+    {l:'SF 수익 합계',v:W(totSFTotal)+'원',bl:true},
+  ].map(k=>`<div class="kpi${k.bl?' bl':''}"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div></div>`).join('');
+
+  el('pu-split-tbody').innerHTML=rows.map(({e,rule,base,extra,dtvAmt,sfBaseAmt,sfTotal})=>`<tr class="data-row">
+    <td><span class="badge b-camp">${e.camp||'—'}</span></td>
+    <td>${e.media}</td>
+    <td style="font-size:11px;color:var(--text2)">${e.corp}</td>
+    <td style="font-size:11px;color:var(--text3)">${rule.period}</td>
+    <td class="r" style="color:var(--blue-text)">${W(base)}</td>
+    <td class="r" style="color:var(--text2)">${rule.dtv}%</td>
+    <td class="r" style="color:var(--text2)">${rule.sf}%</td>
+    <td class="r">${W(dtvAmt)}</td>
+    <td class="r" style="color:var(--blue-text)">${W(sfBaseAmt)}</td>
+    <td class="r" style="color:var(--purple-text)">${extra?W(extra):'—'}</td>
+    <td class="r" style="font-weight:700;color:var(--blue-text)">${W(sfTotal)}</td>
+  </tr>`).join('');
+
+  el('ps-base-tot').textContent=W(totBase);
+  el('ps-dtv-tot').textContent=W(totDTV);
+  el('ps-sf-base-tot').textContent=W(totSFBase);
+  el('ps-extra-tot').textContent=W(totExtra);
+  el('ps-sf-tot').textContent=W(totSFTotal);
+  el('pu-split-tfoot').style.display='';
+}
+
+/* ── DIST ── */
+function getShareRule(camp,month){
+  const rules=shareRules.filter(r=>r.camp===camp);if(!rules.length)return{dtv:80,sf:20};
+  for(const r of rules){
+    if(r.period==='전체')return r;
+    if(r.period.endsWith('~')&&month>=r.period.slice(0,-1))return r;
+    if(r.period.startsWith('~')&&month<=r.period.slice(1))return r;
+  }return rules[rules.length-1];
+}
+function addShareRule(){shareRules.push({id:sid_++,camp:camps[0]?.name||'그린피스',period:'전체',dtv:80,sf:20});renderDist();}
+function delShareRule(i){shareRules.splice(i,1);renderDist();}
+
+function renderDist(){
+  const tb=el('share-tbody');
+  tb.innerHTML=shareRules.map((r,i)=>{
+    const tot=Number(r.dtv)+Number(r.sf);const ok=tot===100;
+    return `<tr>
+      <td><select onchange="shareRules[${i}].camp=this.value;renderDist()" style="height:28px;font-size:12px;font-family:inherit;border:1px solid var(--border);border-radius:6px;padding:0 6px">${camps.map(c=>`<option${c.name===r.camp?' selected':''}>${c.name}</option>`).join('')}</select></td>
+      <td><input value="${r.period}" onchange="shareRules[${i}].period=this.value;renderDist()" style="width:100px;height:28px;font-size:12px;font-family:inherit;border:1px solid var(--border);border-radius:6px;padding:0 6px"></td>
+      <td class="r"><input type="number" value="${r.dtv}" min="0" max="100" onchange="shareRules[${i}].dtv=+this.value;renderDist()" style="width:65px;text-align:right;height:28px;font-size:12px;font-family:inherit;border:1px solid var(--border);border-radius:6px;padding:0 6px"> %</td>
+      <td class="r"><input type="number" value="${r.sf}" min="0" max="100" onchange="shareRules[${i}].sf=+this.value;renderDist()" style="width:65px;text-align:right;height:28px;font-size:12px;font-family:inherit;border:1px solid var(--border);border-radius:6px;padding:0 6px"> %</td>
+      <td class="r" style="color:${ok?'var(--green-text)':'var(--red-text)'};font-weight:600">${tot}%</td>
+      <td><button class="icon-btn del" onclick="delShareRule(${i})" title="삭제"><i class="ti ti-x" style="font-size:12px"></i></button></td>
+    </tr>`;
+  }).join('');
+
+  const allEntries=execs.flatMap(ex=>ex.entries.map(e=>({...e,camp:ex.campName,month:ex.month})));
+  const campMap={};
+  allEntries.forEach(e=>{
+    if(!campMap[e.camp])campMap[e.camp]={base:0,extra:0,month:e.month};
+    campMap[e.camp].base+=e.base;campMap[e.camp].extra+=e.extra;
+    if(!campMap[e.camp].month)campMap[e.camp].month=e.month;
+  });
+
+  const activeCamps=Object.keys(campMap).filter(k=>campMap[k].base>0);
+  const totBase=Object.values(campMap).reduce((s,v)=>s+v.base,0);
+  const totDTV=activeCamps.reduce((s,c)=>{const r=getShareRule(c,campMap[c].month);return s+Math.round(campMap[c].base*r.dtv/100);},0);
+  const totSF=activeCamps.reduce((s,c)=>{const r=getShareRule(c,campMap[c].month);return s+Math.round(campMap[c].base*r.sf/100);},0);
+  const totX=Object.values(campMap).reduce((s,v)=>s+v.extra,0);
+
+  el('dist-kpi').innerHTML=[
+    {l:'배분 기준 수수료(기본)',v:W(totBase)+'원'},
+    {l:'역량지원금(배분 제외)',v:W(totX)+'원'},
+    {l:'DTV코리아 배분액',v:W(totDTV)+'원',bl:true},
+    {l:'SPG&FLWR 수령액',v:W(totSF+totX)+'원'},
+  ].map(k=>`<div class="kpi${k.bl?' bl':''}"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div></div>`).join('');
+
+  if(!activeCamps.length){
+    el('dist-cards').innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:13px">집행 항목을 먼저 입력해주세요.</div>';
+  } else {
+    el('dist-cards').innerHTML=activeCamps.map(camp=>{
+      const {base,extra,month}=campMap[camp];const r=getShareRule(camp,month);
+      const dtv=Math.round(base*r.dtv/100),sf=Math.round(base*r.sf/100);
+      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:1rem">
+        <div style="background:var(--surface2);padding:.75rem 1rem;display:grid;grid-template-columns:1fr 120px 120px;font-size:11px;font-weight:600;color:var(--text2)">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${camp} <span style="font-size:11px;font-weight:400;color:var(--text3)">(${r.period} 적용)</span></div>
+          <div style="text-align:right">DTV코리아</div><div style="text-align:right">SPG&FLWR</div>
+        </div>
+        ${[{l:'배분 기준 수수료',a:null,b:null,c:W(base)+'원',full:true},
+           {l:'배분율',a:r.dtv+'%',b:r.sf+'%'},
+           {l:'배분액 (VAT별도)',a:W(dtv)+'원',b:W(sf)+'원'},
+           ...(extra?[{l:'역량지원금 (배분 제외)',a:'—',b:W(extra)+'원',purple:true}]:[]),
+           {l:'최종 수령액',a:W(dtv)+'원',b:W(sf+extra)+'원',bold:true}]
+          .map(row=>`<div style="padding:.6rem 1rem;display:grid;grid-template-columns:1fr ${row.full?'240px':'120px 120px'};gap:.5rem;border-top:1px solid var(--border);font-size:13px;align-items:center;${row.bold?'font-weight:700;background:var(--blue-bg)':''}">
+            <div style="color:${row.purple?'var(--purple-text)':row.bold?'var(--text)':'var(--text2)'}">${row.l}</div>
+            ${row.full?`<div style="text-align:right;font-weight:600">${row.c}</div>`:`<div style="text-align:right;color:${row.purple?'var(--purple-text)':''}">${row.a}</div><div style="text-align:right;color:${row.purple?'var(--purple-text)':row.bold?'var(--blue-text)':''}">${row.b}</div>`}
+          </div>`).join('')}
+      </div>`;
+    }).join('');
+  }
+
+  renderTaxGuide();
+}
+
+/* ── TAX GUIDE: DTV → SPG 세금계산서 발행 안내서 ── */
+function renderTaxGuide(){
+  const wrap=el('tax-guide-wrap'); if(!wrap) return;
+
+  // 집행건별로 그룹핑
+  if(!execs.length){
+    wrap.innerHTML='<div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:2rem">집행 항목을 먼저 입력하면 안내서가 생성됩니다.</div>';
+    return;
+  }
+
+  wrap.innerHTML = execs.map(ex=>{
+    if(!ex.entries.length) return '';
+    const [y,m]=ex.month.split('-');
+    const rule=getShareRule(ex.campName,ex.month);
+
+    // 항목별 계산 (역량지원금 완전 제외)
+    const items=ex.entries.map(e=>{
+      const base=e.base||0;
+      const sfAmt=Math.round(base*rule.sf/100); // SF 배분분 = DTV가 SF에 지급해야 할 금액
+      return {media:e.media,corp:e.corp,amt:e.amt,base,sfAmt};
+    });
+
+    const totAmt=items.reduce((s,i)=>s+i.amt,0);
+    const totBase=items.reduce((s,i)=>s+i.base,0);
+    const totSF=items.reduce((s,i)=>s+i.sfAmt,0);
+    // DTV 발행 총액 = 광고료 + SF 배분 수수료 (DTV는 SF에 수수료 배분분을 지급)
+    const totalBill=totAmt+totSF;
+
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:1.25rem">
+      <!-- 헤더 -->
+      <div style="background:var(--surface2);padding:.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:700">${ex.campName} — ${y}년 ${parseInt(m)}월</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">발행자: ${ex.buyer} → 수신: ㈜스프링앤플라워 · 배분율: DTV ${rule.dtv}% / SF ${rule.sf}%</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text3)">발행 총액 (VAT별도)</div>
+          <div style="font-size:20px;font-weight:700;color:var(--blue-text)">${W(totalBill)}원</div>
+        </div>
+      </div>
+
+      <!-- 상세 테이블 -->
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>매체명</th><th>공급하는자(법인)</th>
+            <th class="r">광고료<br>(VAT별도)</th>
+            <th class="r" style="color:var(--blue-text)">수수료 배분분<br>(SF귀속, VAT별도)</th>
+            <th class="r" style="font-weight:700">DTV 발행금액<br>(VAT별도)</th>
+            <th class="r">DTV 발행금액<br>(VAT포함)</th>
+          </tr></thead>
+          <tbody>
+            ${items.map(i=>`<tr class="data-row">
+              <td style="font-weight:500">${i.media}</td>
+              <td style="font-size:11px;color:var(--text2)">${i.corp}</td>
+              <td class="r">${W(i.amt)}</td>
+              <td class="r" style="color:var(--blue-text)">${W(i.sfAmt)}</td>
+              <td class="r" style="font-weight:600">${W(i.amt+i.sfAmt)}</td>
+              <td class="r">${W(Math.round((i.amt+i.sfAmt)*1.1))}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="tr-foot">
+              <td colspan="2">합계</td>
+              <td class="r">${W(totAmt)}</td>
+              <td class="r" style="color:var(--blue-text)">${W(totSF)}</td>
+              <td class="r" style="font-weight:700">${W(totalBill)}</td>
+              <td class="r">${W(Math.round(totalBill*1.1))}</td>
+            </tr>
+            <tr class="tr-foot2">
+              <td colspan="5">제안 금액 (천원단위 절사, VAT별도)</td>
+              <td class="r">${W(Math.floor(totalBill/1000)*1000)}원</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- 안내 문구 -->
+      <div style="padding:.75rem 1.25rem;background:var(--surface2);border-top:1px solid var(--border);font-size:12px;color:var(--text3)">
+        ※ 발행금액 = 광고료 + 수수료 배분분(SF ${rule.sf}%) | VAT 10% 별도 | 역량지원금 항목 제외
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:2rem">집행 항목을 먼저 입력해주세요.</div>';
+}
+
+/* ── FEE-IN: 수수료(매입) 청구금액 확인 ── */
+/* 광고주(DTV)가 SPG에 발행해야 하는 수수료 = 기본수수료 × DTV 배분율 */
+function renderFeeIn(){
+  const entries=getEntries(gv('fi-exec-sel'));
+  const empty=()=>{el('fi-kpi').innerHTML='';el('fi-cards').innerHTML='<div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:2rem">집행 항목이 없습니다.</div>';};
+  if(!entries.length){empty();return;}
+
+  // 집행건(execId)별 그룹핑
+  const groupMap={};
+  entries.forEach(e=>{
+    const key=`${e.execId||e.camp}_${e.month}`;
+    if(!groupMap[key]) groupMap[key]={buyer:e.buyer,camp:e.camp,month:e.month,items:[]};
+    groupMap[key].items.push(e);
+  });
+
+  let grandAmt=0, grandBase=0, grandDTV=0;
+
+  const cards=Object.values(groupMap).map(g=>{
+    const [y,m]=g.month.split('-');
+    const rule=getShareRule(g.camp,g.month);
+
+    const rows=g.items.map(e=>{
+      const base=e.base||0;
+      const dtvAmt=Math.round(base*rule.dtv/100);
+      return {media:e.media,corp:e.corp,amt:e.amt,base,dtvAmt};
+    });
+
+    const totAmt=rows.reduce((s,r)=>s+r.amt,0);
+    const totBase=rows.reduce((s,r)=>s+r.base,0);
+    const totDTV=rows.reduce((s,r)=>s+r.dtvAmt,0);
+    grandAmt+=totAmt; grandBase+=totBase; grandDTV+=totDTV;
+
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:1.25rem">
+      <!-- 헤더 -->
+      <div style="background:var(--surface2);padding:.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div style="font-size:14px;font-weight:700">${g.camp} — ${y}년 ${parseInt(m)}월</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">${g.buyer} → ㈜스프링앤플라워 발행 · DTV 배분율 ${rule.dtv}% 기준</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text3)">청구 수수료 (VAT별도)</div>
+          <div style="font-size:20px;font-weight:700;color:var(--blue-text)">${W(totDTV)}원</div>
+        </div>
+      </div>
+
+      <!-- 내역 테이블 -->
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>매체명</th>
+            <th>공급하는자</th>
+            <th class="r">광고료<br>(VAT별도)</th>
+            <th class="r">기본수수료<br>(VAT별도)</th>
+            <th class="r">DTV 배분율</th>
+            <th class="r" style="color:var(--blue-text)">DTV 귀속 수수료<br>(VAT별도)</th>
+            <th class="r" style="color:var(--blue-text)">DTV 귀속 수수료<br>(VAT포함)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr class="data-row">
+              <td style="font-weight:500">${r.media}</td>
+              <td style="font-size:11px;color:var(--text2)">${r.corp}</td>
+              <td class="r">${W(r.amt)}</td>
+              <td class="r">${W(r.base)}</td>
+              <td class="r">${rule.dtv}%</td>
+              <td class="r" style="font-weight:600;color:var(--blue-text)">${W(r.dtvAmt)}</td>
+              <td class="r">${W(Math.round(r.dtvAmt*1.1))}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="tr-foot">
+              <td colspan="2">합계</td>
+              <td class="r">${W(totAmt)}</td>
+              <td class="r">${W(totBase)}</td>
+              <td></td>
+              <td class="r" style="color:var(--blue-text)">${W(totDTV)}</td>
+              <td class="r">${W(Math.round(totDTV*1.1))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- 세금계산서 발행 요청 문구 -->
+      <div style="padding:1rem 1.25rem;background:var(--blue-bg);border-top:1px solid #B5D4F4">
+        <div style="font-size:13px;font-weight:600;color:var(--blue-text);margin-bottom:.4rem">세금계산서 발행 요청</div>
+        <div style="font-size:12px;color:var(--blue-text);line-height:1.7">
+          ${g.buyer}에서 ㈜스프링앤플라워(344-88-00529) 앞으로
+          <b>${y}년 ${parseInt(m)}월 ${g.camp} 광고 수수료</b>
+          <span style="font-weight:700"> ${W(totDTV)}원 (VAT 별도)</span>에 대한 세금계산서 발행을 부탁드립니다.
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  el('fi-kpi').innerHTML=[
+    {l:'총 광고료 (VAT별도)',v:W(grandAmt)+'원'},
+    {l:'기본수수료 합계',v:W(grandBase)+'원'},
+    {l:'DTV 귀속 수수료 (VAT별도)',v:W(grandDTV)+'원',bl:true},
+    {l:'DTV 귀속 수수료 (VAT포함)',v:W(Math.round(grandDTV*1.1))+'원'},
+  ].map(k=>`<div class="kpi${k.bl?' bl':''}"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div></div>`).join('');
+
+  el('fi-cards').innerHTML=cards;
+}
+
+/* ── FEE-OUT: 수수료(매출) 세금계산서 발행요청서 ── */
+/* SPG가 각 지불처(매체사)에 발행할 세금계산서 — 지불처별 합산 */
+function renderFeeOut(){
+  const entries=getEntries(gv('fo-exec-sel'));
+  const billMonth=el('fo-bill-month').value.trim();
+  const empty=()=>{el('fo-kpi').innerHTML='';el('fo-cards').innerHTML='<div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:2rem">집행 항목이 없습니다.</div>';};
+  if(!entries.length){empty();return;}
+
+  // 지불처(corp+brn)별 그룹핑
+  const corpMap={};
+  entries.forEach(e=>{
+    const key=e.brn||e.corp;
+    if(!corpMap[key]){corpMap[key]={corp:e.corp,brn:e.brn||'',items:[],baseTotal:0,extraTotal:0};}
+    corpMap[key].items.push(e);
+    corpMap[key].baseTotal+=e.base||0;
+    corpMap[key].extraTotal+=e.extra||0;
+  });
+
+  let grandBase=0,grandExtra=0;
+  const cards=Object.values(corpMap).map(g=>{
+    grandBase+=g.baseTotal; grandExtra+=g.extraTotal;
+    const hasExtra=g.extraTotal>0;
+    const billLabel=billMonth||'해당월';
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:1.25rem">
+      <!-- 지불처 헤더 -->
+      <div style="background:var(--surface2);padding:.85rem 1.25rem;border-bottom:1px solid var(--border)">
+        <div style="font-size:14px;font-weight:700">${g.corp}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">사업자번호 ${g.brn||'—'} · 발행자: ㈜스프링앤플라워</div>
+      </div>
+
+      <!-- 세금계산서 ①: 기본수수료 -->
+      <div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <div style="font-size:12px;font-weight:600;color:var(--blue-text);background:var(--blue-bg);padding:3px 10px;border-radius:20px">세금계산서 ① — 기본수수료</div>
+          <div style="font-size:13px;font-weight:700;color:var(--blue-text)">${W(g.baseTotal)}원 <span style="font-size:11px;font-weight:400;color:var(--text3)">(VAT별도)</span></div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>품목</th><th>매체명</th>
+            <th class="r">광고료(VAT별도)</th>
+            <th class="r">수수료율</th>
+            <th class="r" style="color:var(--blue-text)">기본수수료(VAT별도)</th>
+            <th class="r">기본수수료(VAT포함)</th>
+          </tr></thead>
+          <tbody>
+            ${g.items.map(e=>{
+              const f=getFee(e.corp,e.mediaType,e.brn||'');
+              return `<tr class="data-row">
+                <td><span class="badge b-camp">${e.camp||'—'}</span></td>
+                <td style="font-weight:500">${e.media}</td>
+                <td class="r">${W(e.amt)}</td>
+                <td class="r">${f.bs}</td>
+                <td class="r" style="font-weight:600;color:var(--blue-text)">${W(e.base)}</td>
+                <td class="r">${W(Math.round(e.base*1.1))}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="tr-foot">
+              <td colspan="4">소계</td>
+              <td class="r" style="color:var(--blue-text)">${W(g.baseTotal)}</td>
+              <td class="r">${W(Math.round(g.baseTotal*1.1))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- 세금계산서 ②: 역량지원금 (해당 시) -->
+      ${hasExtra ? `<div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <div style="font-size:12px;font-weight:600;color:var(--purple-text);background:var(--purple-bg);padding:3px 10px;border-radius:20px">세금계산서 ② — 역량지원금 (별도 발행)</div>
+          <div style="font-size:13px;font-weight:700;color:var(--purple-text)">${W(g.extraTotal)}원 <span style="font-size:11px;font-weight:400;color:var(--text3)">(VAT별도)</span></div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>품목</th><th>매체명</th>
+            <th class="r">광고료(VAT별도)</th>
+            <th class="r">역량지원금율</th>
+            <th class="r" style="color:var(--purple-text)">역량지원금(VAT별도)</th>
+            <th class="r">역량지원금(VAT포함)</th>
+          </tr></thead>
+          <tbody>
+            ${g.items.filter(e=>e.extra>0).map(e=>`<tr class="data-row">
+              <td><span class="badge b-camp">${e.camp||'—'}</span></td>
+              <td style="font-weight:500">${e.media}</td>
+              <td class="r">${W(e.amt)}</td>
+              <td class="r" style="color:var(--purple-text)">+3%</td>
+              <td class="r" style="font-weight:600;color:var(--purple-text)">${W(e.extra)}</td>
+              <td class="r">${W(Math.round(e.extra*1.1))}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="tr-foot">
+              <td colspan="4">소계</td>
+              <td class="r" style="color:var(--purple-text)">${W(g.extraTotal)}</td>
+              <td class="r">${W(Math.round(g.extraTotal*1.1))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>` : ''}
+
+      <!-- 지불처별 합산 -->
+      <div style="padding:.75rem 1.25rem;background:var(--blue-bg);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <div style="font-size:13px;font-weight:600;color:var(--blue-text)">${g.corp} 앞 발행 합계</div>
+        <div style="display:flex;gap:2rem;align-items:baseline">
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--blue)">기본수수료 (VAT별도)</div>
+            <div style="font-size:15px;font-weight:700;color:var(--blue-text)">${W(g.baseTotal)}원</div>
+          </div>
+          ${hasExtra?`<div style="text-align:right">
+            <div style="font-size:11px;color:var(--purple-text)">역량지원금 (VAT별도, 별도 발행)</div>
+            <div style="font-size:15px;font-weight:700;color:var(--purple-text)">${W(g.extraTotal)}원</div>
+          </div>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  el('fo-kpi').innerHTML=[
+    {l:'청구 대상 지불처',v:Object.keys(corpMap).length+'개사'},
+    {l:'기본수수료 청구 합계 (VAT별도)',v:W(grandBase)+'원',bl:true},
+    {l:'역량지원금 청구 합계 (VAT별도)',v:W(grandExtra)+'원'},
+    {l:'발행 총액 (VAT별도)',v:W(grandBase+grandExtra)+'원'},
+  ].map(k=>`<div class="kpi${k.bl?' bl':''}"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div></div>`).join('');
+
+  el('fo-cards').innerHTML=cards;
+}
+
+/* ════════════════════════════════════════════
+   FIREBASE 연동 레이어
+   ════════════════════════════════════════════ */
+let db, storage, fbReady = false;
+let _saving = false;
+
+// 토스트
+function toast(msg, type='info', ms=2800){
+  const t=el('toast');
+  t.textContent=msg; t.className='toast '+type;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+// DB 로딩 화면
+function showLoader(msg='불러오는 중...'){el('db-loader').style.display='flex';el('db-loader-msg').textContent=msg;}
+function hideLoader(){el('db-loader').style.display='none';}
+
+// 동기화 뱃지
+function setSyncBadge(state){
+  const b=el('sync-badge');
+  if(state==='ok'){b.className='sync-badge';b.textContent='● 동기화됨';}
+  else if(state==='saving'){b.className='sync-badge saving';b.textContent='↑ 저장 중...';}
+  else if(state==='err'){b.className='sync-badge err';b.textContent='✕ 오프라인';}
+  else{b.className='sync-badge saving';b.textContent='● 연결 중';}
+}
+
+// 로그인
+function doLogin(){
+  const pw=el('login-pw').value;
+  if(!APP_PASSWORD||pw===APP_PASSWORD){
+    el('login-wrap').style.display='none';
+    initApp();
+  } else {
+    el('login-err').style.display='block';
+    el('login-pw').value='';el('login-pw').focus();
+  }
+}
+
+// 파일 객체에서 brnFile/accFile 제거 (DB 저장 불가 — Storage 따로)
+function stripFiles(obj){
+  if(!obj) return obj;
+  const o={...obj};
+  delete o.brnFile; delete o.accFile;
+  return o;
+}
+
+// Firebase Storage 업로드 헬퍼
+async function uploadFile(path, fileData){
+  if(!fileData||!fileData.data) return null;
+  try{
+    const ref=storage.ref(path);
+    await ref.putString(fileData.data,'data_url');
+    const url=await ref.getDownloadURL();
+    return {name:fileData.name,type:fileData.type,url,isPdf:fileData.isPdf};
+  }catch(e){console.error('upload error',e);return null;}
+}
+
+// Firebase에서 파일 URL → 표시용 객체로
+function fileFromStorage(stored){
+  if(!stored) return null;
+  // data 필드 대신 url 필드 사용 (Storage URL)
+  return {...stored, data:stored.url};
+}
+
+// ── 저장 함수들 ──
+async function saveAll(){
+  if(!fbReady||_saving) return;
+  _saving=true; setSyncBadge('saving');
+  try{
+    // dims (파일 제외, 별도 Storage)
+    const dimsData={};
+    dims.forEach(d=>{ dimsData[d.id]=stripFiles(d); });
+    await db.ref('dims').set(dimsData);
+
+    // camps
+    const campsData={};
+    camps.forEach(c=>{ campsData[c.id]=stripFiles(c); });
+    await db.ref('camps').set(campsData);
+
+    // buyers
+    const buyersData={};
+    buyers.forEach(b=>{ buyersData[b.id]=stripFiles(b); });
+    await db.ref('buyers').set(buyersData);
+
+    // shareRules
+    await db.ref('shareRules').set(shareRules);
+
+    // execs (entries 포함, 파일 없음)
+    const execsData={};
+    execs.forEach(ex=>{ execsData[ex.id]=ex; });
+    await db.ref('execs').set(execsData);
+
+    // counters
+    await db.ref('counters').set({did,cid,xid,eid_,sid_,bid});
+
+    setSyncBadge('ok');
+  }catch(e){
+    console.error('saveAll error',e);
+    setSyncBadge('err');
+    toast('저장 실패: '+e.message,'err');
+  }finally{ _saving=false; }
+}
+
+// 자동저장 디바운스 (1.5초 후)
+let _saveTimer=null;
+function autoSave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(saveAll, 1500);
+  setSyncBadge('saving');
+}
+
+// ── 불러오기 ──
+async function loadAll(){
+  showLoader('데이터 불러오는 중...');
+  try{
+    const snap=await db.ref('/').once('value');
+    const data=snap.val()||{};
+
+    // counters
+    if(data.counters){
+      const c=data.counters;
+      did=c.did||9; cid=c.cid||1; xid=c.xid||1;
+      eid_=c.eid_||1; sid_=c.sid_||10; bid=c.bid||1;
+    }
+
+    // dims
+    if(data.dims){
+      dims=Object.values(data.dims).map(d=>({brnFile:null,accFile:null,...d}));
+    }
+
+    // camps
+    if(data.camps){
+      camps=Object.values(data.camps).map(c=>({brnFile:null,...c}));
+    } else {
+      initDefaultCamps();
+    }
+
+    // buyers
+    if(data.buyers){
+      buyers=Object.values(data.buyers).map(b=>({brnFile:null,accFile:null,...b}));
+    }
+
+    // shareRules
+    if(data.shareRules){
+      shareRules=Array.isArray(data.shareRules)?data.shareRules:Object.values(data.shareRules);
+    }
+
+    // execs
+    if(data.execs){
+      execs=Object.values(data.execs);
+    }
+
+    // Storage 파일 복원 (비동기, UI 먼저 렌더)
+    restoreStorageFiles();
+
+    hideLoader();
+    setSyncBadge('ok');
+    toast('데이터를 불러왔습니다.','ok');
+  }catch(e){
+    console.error('loadAll error',e);
+    hideLoader();
+    setSyncBadge('err');
+    toast('데이터 로드 실패 — 로컬 초기값 사용','err',4000);
+    // fallback
+    initDefaultCamps();
+    loadSeedData();
+  }
+  renderAll();
+}
+
+// Storage 파일 URL 복원 (백그라운드)
+async function restoreStorageFiles(){
+  try{
+    const snap=await db.ref('files').once('value');
+    const files=snap.val()||{};
+    // dims
+    if(files.dims){
+      Object.entries(files.dims).forEach(([id,f])=>{
+        const d=dims.find(x=>String(x.id)===String(id));
+        if(!d) return;
+        if(f.brn) d.brnFile=fileFromStorage(f.brn);
+        if(f.acc) d.accFile=fileFromStorage(f.acc);
+      });
+    }
+    // buyers
+    if(files.buyers){
+      Object.entries(files.buyers).forEach(([id,f])=>{
+        const b=buyers.find(x=>String(x.id)===String(id));
+        if(!b) return;
+        if(f.brn) b.brnFile=fileFromStorage(f.brn);
+        if(f.acc) b.accFile=fileFromStorage(f.acc);
+      });
+    }
+    // camps
+    if(files.camps){
+      Object.entries(files.camps).forEach(([id,f])=>{
+        const c=camps.find(x=>String(x.id)===String(id));
+        if(!c) return;
+        if(f.brn) c.brnFile=fileFromStorage(f.brn);
+      });
+    }
+    // spg
+    if(files.spg){
+      if(files.spg.brn) spgFiles.brn=fileFromStorage(files.spg.brn);
+      if(files.spg.acc) spgFiles.acc=fileFromStorage(files.spg.acc);
+    }
+    renderDimTable();
+    renderBuyers();
+    renderCamps();
+  }catch(e){ console.error('restoreStorageFiles',e); }
+}
+
+// Storage 파일 저장 래퍼 (dim/buyer/camp/spg)
+async function saveFileToStorage(category, id, type, fileData){
+  if(!fbReady||!fileData) return;
+  try{
+    const path=`files/${category}/${id}/${type}`;
+    const ref=storage.ref(path);
+    await ref.putString(fileData.data,'data_url');
+    const url=await ref.getDownloadURL();
+    const meta={name:fileData.name,type:fileData.type,url,isPdf:fileData.isPdf};
+    await db.ref(`files/${category}/${id}/${type}`).set(meta);
+    toast(`${type==='brn'?'사업자등록증':'통장사본'} 업로드 완료`,'ok');
+    return meta;
+  }catch(e){
+    toast('파일 업로드 실패: '+e.message,'err');
+    return null;
+  }
+}
+
+// saveDim 후 파일 업로드 트리거
+const _origSaveDim=window.saveDim;
+async function saveDimWithStorage(){
+  saveDim();
+  // 방금 저장된 dim 찾기
+  const editId=parseInt(el('d-edit-id').value)||0;
+  const targetId=editId||dims[dims.length-1]?.id;
+  if(!targetId||!fbReady) return;
+  if(tmpBrnFile&&tmpBrnFile.data&&!tmpBrnFile.url){
+    const meta=await saveFileToStorage('dims',targetId,'brn',tmpBrnFile);
+    const d=dims.find(x=>x.id===targetId);
+    if(d&&meta) d.brnFile={...meta,data:meta.url};
+  }
+  if(tmpAccFile&&tmpAccFile.data&&!tmpAccFile.url){
+    const meta=await saveFileToStorage('dims',targetId,'acc',tmpAccFile);
+    const d=dims.find(x=>x.id===targetId);
+    if(d&&meta) d.accFile={...meta,data:meta.url};
+  }
+  autoSave();
+}
+
+// renderAll — 모든 뷰 재렌더
+function renderAll(){
+  if(camps.length===0) initDefaultCamps();
+  renderDimTable(); updateDimSel();
+  renderBuyers(); syncByrSel();
+  renderCamps(); syncCampSels();
+  renderDist();
+  renderExecCards();
+  dimFeePreview(); calcEntryPreview();
+}
+
+// 초기 시드 데이터 (Firebase 첫 연결 실패 시 fallback)
+function loadSeedData(){
+  if(dims.length===0) dims=[
+    {id:1,media:'BBS',corp:'(재) 불교방송',brn:'105-82-04476',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+    {id:2,media:'KBS Drama',corp:'액티브인터내쇼날 주식회사',brn:'120-87-73429',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+    {id:3,media:'KBS JOY',corp:'액티브인터내쇼날 주식회사',brn:'120-87-73429',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+    {id:4,media:'Channel A Plus',corp:'액티브인터내쇼날 주식회사',brn:'120-87-73429',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+    {id:5,media:'MBC every1',corp:'액티브인터내셔널 주식회사',brn:'120-87-73429',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+    {id:6,media:'SBS Biz',corp:'액티브인터내셔날 주식회사',brn:'120-87-73429',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+    {id:7,media:'K star',corp:'(주) 초록뱀미디어',brn:'220-81-52270',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+    {id:8,media:'Lifetime',corp:'라이프타임채널코리아 유한회사',brn:'211-87-61914',mediaType:'cable',contact:'',email:'',tel:'',note:'',brnFile:null,accFile:null},
+  ]; did=9;
+}
+
+// ── 앱 진입점 ──
+function initApp(){
+  showLoader('Firebase 초기화 중...');
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db=firebase.database();
+    storage=firebase.storage();
+    fbReady=true;
+    // 연결 상태 모니터링
+    db.ref('.info/connected').on('value',snap=>{
+      setSyncBadge(snap.val()?'ok':'err');
+    });
+    loadAll();
+  }catch(e){
+    console.error('Firebase init error',e);
+    hideLoader();
+    setSyncBadge('err');
+    toast('Firebase 설정 필요 — 로컬 모드로 실행','err',5000);
+    // Firebase 없이 로컬 실행
+    initDefaultCamps();
+    loadSeedData();
+    renderAll();
+  }
+}
+
+// autoSave 훅 — 주요 변경 함수에 일괄 적용
+const _hookFns=['saveDim','saveBuyer','saveCamp','addEntry','saveEntry','deleteEntry',
+  'clearAllEntries','createExec','deleteExec','addShareRule','delShareRule',
+  'addDim','deleteDim','delBuyer','delCamp','regXlRows','regExiRows','parseCsv'];
+_hookFns.forEach(name=>{
+  const orig=window[name];
+  if(typeof orig==='function'){
+    window[name]=function(...args){
+      const r=orig.apply(this,args);
+      if(fbReady) autoSave();
+      return r;
+    };
+  }
+});
+
+// 패스워드 없으면 바로 진입
+if(!APP_PASSWORD){
+  el('login-wrap').style.display='none';
+  initApp();
+}
+</script>
+</body>
+</html>

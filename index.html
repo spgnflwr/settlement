@@ -2021,7 +2021,7 @@ function renderPurchase(){
 }
 
 function renderPurchaseSplit(){
-  const entries=getEntries(gv('pu-exec-sel'));
+  const entries=getEntriesByPrefix('pu');
   if(!entries.length){
     el('pu-split-tbody').innerHTML='<tr><td colspan="11" class="empty">집행 항목이 없습니다</td></tr>';
     el('pu-split-tfoot').style.display='none';
@@ -2511,56 +2511,106 @@ function doLogin(){
   }
 }
 
-// 파일 객체에서 brnFile/accFile 제거 (DB 저장 불가 — Storage 따로)
+// 파일 객체에서 brnFile/accFile 제거 (DB에는 메타만, 파일은 Storage)
 function stripFiles(obj){
   if(!obj) return obj;
   const o={...obj};
-  delete o.brnFile; delete o.accFile;
+  // Storage URL이 있으면 메타만 보관, 없으면 null
+  if(o.brnFile) o.brnFile=o.brnFile.url?{name:o.brnFile.name,type:o.brnFile.type,isPdf:o.brnFile.isPdf,url:o.brnFile.url}:null;
+  if(o.accFile) o.accFile=o.accFile.url?{name:o.accFile.name,type:o.accFile.type,isPdf:o.accFile.isPdf,url:o.accFile.url}:null;
   return o;
 }
 
-// Firebase Storage 업로드 헬퍼
-async function uploadFile(path, fileData){
+// Storage 업로드 — base64 → Storage → URL 반환
+async function uploadToStorage(path, fileData){
   if(!fileData||!fileData.data) return null;
   try{
     const ref=storage.ref(path);
     await ref.putString(fileData.data,'data_url');
     const url=await ref.getDownloadURL();
-    return {name:fileData.name,type:fileData.type,url,isPdf:fileData.isPdf};
-  }catch(e){console.error('upload error',e);return null;}
+    return {name:fileData.name,type:fileData.type,isPdf:fileData.isPdf||false,url};
+  }catch(e){
+    console.error('Storage upload error',path,e);
+    toast('파일 업로드 실패: '+e.message,'err');
+    return null;
+  }
 }
 
-// Firebase에서 파일 URL → 표시용 객체로
-function fileFromStorage(stored){
-  if(!stored) return null;
-  // data 필드 대신 url 필드 사용 (Storage URL)
-  return {...stored, data:stored.url};
+// Storage URL → 표시용 객체 (data 필드에 URL 넣어서 기존 코드 그대로 동작)
+function fileFromMeta(meta){
+  if(!meta||!meta.url) return null;
+  return {...meta, data:meta.url};
 }
 
-// ── 저장 함수들 ──
+// 파일이 새로 첨부된 경우 (base64 있고 url 없음) Storage 업로드
+async function syncFileToStorage(category, id, type, fileData){
+  if(!fileData) return null;
+  if(fileData.url) return fileData; // 이미 Storage에 있음
+  if(!fileData.data) return null;
+  const meta=await uploadToStorage(`files/${category}/${id}/${type}`, fileData);
+  if(meta) toast(`${type==='brn'?'사업자등록증':'통장사본'} 업로드 완료`,'ok',2000);
+  return meta;
+}
+
+// ── 저장 ──
 async function saveAll(){
   if(!fbReady||_saving) return;
   _saving=true; setSyncBadge('saving');
   try{
-    // dims (파일 제외, 별도 Storage)
+    // ① 파일 Storage 업로드 (새 파일만)
+    for(const d of dims){
+      if(d.brnFile&&!d.brnFile.url){const m=await syncFileToStorage('dims',d.id,'brn',d.brnFile);if(m)d.brnFile=m;}
+      if(d.accFile&&!d.accFile.url){const m=await syncFileToStorage('dims',d.id,'acc',d.accFile);if(m)d.accFile=m;}
+    }
+    for(const b of buyers){
+      if(b.brnFile&&!b.brnFile.url){const m=await syncFileToStorage('buyers',b.id,'brn',b.brnFile);if(m)b.brnFile=m;}
+      if(b.accFile&&!b.accFile.url){const m=await syncFileToStorage('buyers',b.id,'acc',b.accFile);if(m)b.accFile=m;}
+    }
+    for(const c of camps){
+      if(c.brnFile&&!c.brnFile.url){const m=await syncFileToStorage('camps',c.id,'brn',c.brnFile);if(m)c.brnFile=m;}
+    }
+    if(spgFiles.brn&&!spgFiles.brn.url){const m=await syncFileToStorage('spg','spg','brn',spgFiles.brn);if(m)spgFiles.brn=m;}
+    if(spgFiles.acc&&!spgFiles.acc.url){const m=await syncFileToStorage('spg','spg','acc',spgFiles.acc);if(m)spgFiles.acc=m;}
+
+    // ② DB 저장 (파일은 메타만)
     const dimsData={};
-    dims.forEach(d=>{ dimsData[d.id]=stripFiles(d); });
+    dims.forEach(d=>{dimsData[d.id]=stripFiles(d);});
     await db.ref('dims').set(dimsData);
 
-    // camps
     const campsData={};
-    camps.forEach(c=>{ campsData[c.id]=stripFiles(c); });
+    camps.forEach(c=>{campsData[c.id]=stripFiles(c);});
     await db.ref('camps').set(campsData);
 
-    // buyers
     const buyersData={};
-    buyers.forEach(b=>{ buyersData[b.id]=stripFiles(b); });
+    buyers.forEach(b=>{buyersData[b.id]=stripFiles(b);});
     await db.ref('buyers').set(buyersData);
+
+    // spgFiles 메타
+    await db.ref('spgFiles').set({
+      brn:spgFiles.brn?.url?{name:spgFiles.brn.name,type:spgFiles.brn.type,isPdf:spgFiles.brn.isPdf,url:spgFiles.brn.url}:null,
+      acc:spgFiles.acc?.url?{name:spgFiles.acc.name,type:spgFiles.acc.type,isPdf:spgFiles.acc.isPdf,url:spgFiles.acc.url}:null,
+    });
+
+    await db.ref('shareRules').set(shareRules);
+
+    const execsData={};
+    execs.forEach(ex=>{execsData[ex.id]=ex;});
+    await db.ref('execs').set(execsData);
+
+    await db.ref('counters').set({did,cid,xid,eid_,sid_,bid});
+
+    setSyncBadge('ok');
+  }catch(e){
+    console.error('saveAll error',e);
+    setSyncBadge('err');
+    toast('저장 실패: '+e.message,'err');
+  }finally{_saving=false;}
+}
 
     // shareRules
     await db.ref('shareRules').set(shareRules);
 
-    // execs (entries 포함, 파일 없음)
+    // execs
     const execsData={};
     execs.forEach(ex=>{ execsData[ex.id]=ex; });
     await db.ref('execs').set(execsData);
@@ -2598,21 +2648,38 @@ async function loadAll(){
       eid_=c.eid_||1; sid_=c.sid_||10; bid=c.bid||1;
     }
 
-    // dims
+    // dims — 파일 메타(url) 복원
     if(data.dims){
-      dims=Object.values(data.dims).map(d=>({brnFile:null,accFile:null,...d}));
+      dims=Object.values(data.dims).map(d=>({
+        ...d,
+        brnFile:fileFromMeta(d.brnFile),
+        accFile:fileFromMeta(d.accFile),
+      }));
     }
 
     // camps
     if(data.camps){
-      camps=Object.values(data.camps).map(c=>({brnFile:null,...c}));
+      camps=Object.values(data.camps).map(c=>({...c, brnFile:fileFromMeta(c.brnFile)}));
     } else {
       initDefaultCamps();
     }
 
     // buyers
     if(data.buyers){
-      buyers=Object.values(data.buyers).map(b=>({brnFile:null,accFile:null,...b}));
+      buyers=Object.values(data.buyers).map(b=>({
+        ...b,
+        brnFile:fileFromMeta(b.brnFile),
+        accFile:fileFromMeta(b.accFile),
+      }));
+    }
+
+    // spgFiles
+    if(data.spgFiles){
+      spgFiles.brn=fileFromMeta(data.spgFiles.brn);
+      spgFiles.acc=fileFromMeta(data.spgFiles.acc);
+      // 상태 카드 업데이트
+      if(spgFiles.brn){el('spg-brn-status').textContent=spgFiles.brn.name;el('spg-brn-status').style.color='var(--green-text)';el('spg-brn-dl').style.display='inline-flex';}
+      if(spgFiles.acc){el('spg-acc-status').textContent=spgFiles.acc.name;el('spg-acc-status').style.color='var(--green-text)';el('spg-acc-dl').style.display='inline-flex';}
     }
 
     // shareRules
@@ -2625,9 +2692,6 @@ async function loadAll(){
       execs=Object.values(data.execs);
     }
 
-    // Storage 파일 복원 (비동기, UI 먼저 렌더)
-    restoreStorageFiles();
-
     hideLoader();
     setSyncBadge('ok');
     toast('데이터를 불러왔습니다.','ok');
@@ -2636,92 +2700,10 @@ async function loadAll(){
     hideLoader();
     setSyncBadge('err');
     toast('데이터 로드 실패 — 로컬 초기값 사용','err',4000);
-    // fallback
     initDefaultCamps();
     loadSeedData();
   }
   renderAll();
-}
-
-// Storage 파일 URL 복원 (백그라운드)
-async function restoreStorageFiles(){
-  try{
-    const snap=await db.ref('files').once('value');
-    const files=snap.val()||{};
-    // dims
-    if(files.dims){
-      Object.entries(files.dims).forEach(([id,f])=>{
-        const d=dims.find(x=>String(x.id)===String(id));
-        if(!d) return;
-        if(f.brn) d.brnFile=fileFromStorage(f.brn);
-        if(f.acc) d.accFile=fileFromStorage(f.acc);
-      });
-    }
-    // buyers
-    if(files.buyers){
-      Object.entries(files.buyers).forEach(([id,f])=>{
-        const b=buyers.find(x=>String(x.id)===String(id));
-        if(!b) return;
-        if(f.brn) b.brnFile=fileFromStorage(f.brn);
-        if(f.acc) b.accFile=fileFromStorage(f.acc);
-      });
-    }
-    // camps
-    if(files.camps){
-      Object.entries(files.camps).forEach(([id,f])=>{
-        const c=camps.find(x=>String(x.id)===String(id));
-        if(!c) return;
-        if(f.brn) c.brnFile=fileFromStorage(f.brn);
-      });
-    }
-    // spg
-    if(files.spg){
-      if(files.spg.brn) spgFiles.brn=fileFromStorage(files.spg.brn);
-      if(files.spg.acc) spgFiles.acc=fileFromStorage(files.spg.acc);
-    }
-    renderDimTable();
-    renderBuyers();
-    renderCamps();
-  }catch(e){ console.error('restoreStorageFiles',e); }
-}
-
-// Storage 파일 저장 래퍼 (dim/buyer/camp/spg)
-async function saveFileToStorage(category, id, type, fileData){
-  if(!fbReady||!fileData) return;
-  try{
-    const path=`files/${category}/${id}/${type}`;
-    const ref=storage.ref(path);
-    await ref.putString(fileData.data,'data_url');
-    const url=await ref.getDownloadURL();
-    const meta={name:fileData.name,type:fileData.type,url,isPdf:fileData.isPdf};
-    await db.ref(`files/${category}/${id}/${type}`).set(meta);
-    toast(`${type==='brn'?'사업자등록증':'통장사본'} 업로드 완료`,'ok');
-    return meta;
-  }catch(e){
-    toast('파일 업로드 실패: '+e.message,'err');
-    return null;
-  }
-}
-
-// saveDim 후 파일 업로드 트리거
-const _origSaveDim=window.saveDim;
-async function saveDimWithStorage(){
-  saveDim();
-  // 방금 저장된 dim 찾기
-  const editId=parseInt(el('d-edit-id').value)||0;
-  const targetId=editId||dims[dims.length-1]?.id;
-  if(!targetId||!fbReady) return;
-  if(tmpBrnFile&&tmpBrnFile.data&&!tmpBrnFile.url){
-    const meta=await saveFileToStorage('dims',targetId,'brn',tmpBrnFile);
-    const d=dims.find(x=>x.id===targetId);
-    if(d&&meta) d.brnFile={...meta,data:meta.url};
-  }
-  if(tmpAccFile&&tmpAccFile.data&&!tmpAccFile.url){
-    const meta=await saveFileToStorage('dims',targetId,'acc',tmpAccFile);
-    const d=dims.find(x=>x.id===targetId);
-    if(d&&meta) d.accFile={...meta,data:meta.url};
-  }
-  autoSave();
 }
 
 // renderAll — 모든 뷰 재렌더

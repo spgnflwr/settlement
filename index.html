@@ -193,6 +193,24 @@ tr.data-row:hover td{background:#FAFAFA}
 .login-box input{width:100%;height:38px;border:1px solid var(--border);border-radius:var(--r);padding:0 .75rem;font-size:14px;font-family:inherit;outline:none;margin-bottom:.75rem;text-align:center;letter-spacing:.1em}
 .login-box input:focus{border-color:var(--blue)}
 .login-err{font-size:12px;color:var(--red-text);margin-top:-.4rem;margin-bottom:.5rem;display:none}
+
+/* ── 멀티셀렉트 공용 ── */
+.ms-wrap{position:relative}
+.ms-trigger{height:34px;border:1px solid var(--border);border-radius:var(--r);padding:0 .65rem;font-size:13px;color:var(--text);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;gap:.5rem;transition:border .12s}
+.ms-trigger:hover{border-color:var(--border2)}
+.ms-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.ms-dropdown{display:none;position:absolute;top:38px;left:0;min-width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:300;box-shadow:0 6px 24px rgba(0,0,0,.13)}
+.ms-dropdown.open{display:block}
+.ms-all-row{display:flex;align-items:center;gap:8px;padding:.55rem .85rem;font-size:12px;font-weight:600;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text2);background:var(--surface2)}
+.ms-all-row:hover{background:var(--surface3)}
+.ms-items{max-height:220px;overflow-y:auto}
+.ms-row{display:flex;align-items:flex-start;gap:9px;padding:.55rem .85rem;cursor:pointer;border-bottom:.5px solid var(--border);transition:background .1s}
+.ms-row:last-child{border-bottom:none}
+.ms-row:hover{background:var(--surface2)}
+.ms-row input[type=checkbox]{width:14px;height:14px;cursor:pointer;flex-shrink:0;margin-top:2px}
+.ms-row-text{display:flex;flex-direction:column}
+.ms-row-main{font-size:13px;color:var(--text);font-weight:500}
+.ms-row-sub{font-size:11px;color:var(--text2);margin-top:1px}
 </style>
 </head>
 <body>
@@ -519,7 +537,7 @@ tr.data-row:hover td{background:#FAFAFA}
             <div class="field"><label>광고료 (VAT별도, 원) *</label><input id="ef-amt" type="number" style="text-align:right" placeholder="0" oninput="calcEntryPreview()"></div>
             <div class="field">
               <label>부가세 구분 <span style="font-size:10px;color:var(--purple-text)">채널별 개별 설정</span></label>
-              <select id="ef-vat">
+              <select id="ef-vat" oninput="calcEntryPreview()">
                 <option value="taxable">과세 (10%)</option>
                 <option value="zero">영세율 (0%)</option>
                 <option value="exempt">면세</option>
@@ -580,16 +598,14 @@ tr.data-row:hover td{background:#FAFAFA}
         <div class="fg fg3">
           <div class="field">
             <label>집행건 선택 (복수 선택 가능)</label>
-            <div style="position:relative">
-              <div id="q-exec-trigger" onclick="toggleExecDropdown()" style="height:34px;border:1px solid var(--border);border-radius:var(--r);padding:0 .65rem;font-size:13px;color:var(--text);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none">
-                <span id="q-exec-label">전체 합산</span>
-                <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text3)"></i>
+            <div class="ms-wrap">
+              <div class="ms-trigger" onclick="msToggle('q')">
+                <span class="ms-label" id="q-ms-label">전체 합산</span>
+                <i class="ti ti-chevron-down" style="font-size:12px;color:var(--text3);flex-shrink:0"></i>
               </div>
-              <div id="q-exec-dropdown" style="display:none;position:absolute;top:38px;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.1);max-height:220px;overflow-y:auto">
-                <label style="display:flex;align-items:center;gap:8px;padding:.5rem .75rem;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text2)" onclick="toggleAllExecs(event)">
-                  <input type="checkbox" id="q-exec-all" checked style="cursor:pointer"> 전체 합산
-                </label>
-                <div id="q-exec-checks"></div>
+              <div class="ms-dropdown" id="q-ms-dd">
+                <div class="ms-all-row"><input type="checkbox" id="q-ms-all" checked onchange="msAllChange('q')"> 전체 합산</div>
+                <div class="ms-items" id="q-ms-items"></div>
               </div>
             </div>
           </div>
@@ -651,7 +667,19 @@ tr.data-row:hover td{background:#FAFAFA}
       <!-- 집행건 선택 (공통) -->
       <div class="card">
         <div class="fg fg2">
-          <div class="field"><label>집행건</label><select id="pu-exec-sel" onchange="renderPurchase()"><option value="">전체 합산</option></select></div>
+          <div class="field">
+            <label>집행건 선택 (복수 선택 가능)</label>
+            <div class="ms-wrap">
+              <div class="ms-trigger" onclick="msToggle('pu')">
+                <span class="ms-label" id="pu-ms-label">전체 합산</span>
+                <i class="ti ti-chevron-down" style="font-size:12px;color:var(--text3);flex-shrink:0"></i>
+              </div>
+              <div class="ms-dropdown" id="pu-ms-dd">
+                <div class="ms-all-row"><input type="checkbox" id="pu-ms-all" checked onchange="msAllChange('pu')"> 전체 합산</div>
+                <div class="ms-items" id="pu-ms-items"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -804,8 +832,18 @@ tr.data-row:hover td{background:#FAFAFA}
       <!-- 집행건 선택 -->
       <div class="card">
         <div class="fg fg2">
-          <div class="field"><label>집행건</label>
-            <select id="fi-exec-sel" onchange="renderFeeIn()"><option value="">전체 합산</option></select>
+          <div class="field">
+            <label>집행건 선택 (복수 선택 가능)</label>
+            <div class="ms-wrap">
+              <div class="ms-trigger" onclick="msToggle('fi')">
+                <span class="ms-label" id="fi-ms-label">전체 합산</span>
+                <i class="ti ti-chevron-down" style="font-size:12px;color:var(--text3);flex-shrink:0"></i>
+              </div>
+              <div class="ms-dropdown" id="fi-ms-dd">
+                <div class="ms-all-row"><input type="checkbox" id="fi-ms-all" checked onchange="msAllChange('fi')"> 전체 합산</div>
+                <div class="ms-items" id="fi-ms-items"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -827,9 +865,19 @@ tr.data-row:hover td{background:#FAFAFA}
 
       <!-- 집행건 선택 -->
       <div class="card">
-        <div class="fg fg3">
-          <div class="field"><label>집행건</label>
-            <select id="fo-exec-sel" onchange="renderFeeOut()"><option value="">전체 합산</option></select>
+        <div class="fg fg2">
+          <div class="field">
+            <label>집행건 선택 (복수 선택 가능)</label>
+            <div class="ms-wrap">
+              <div class="ms-trigger" onclick="msToggle('fo')">
+                <span class="ms-label" id="fo-ms-label">전체 합산</span>
+                <i class="ti ti-chevron-down" style="font-size:12px;color:var(--text3);flex-shrink:0"></i>
+              </div>
+              <div class="ms-dropdown" id="fo-ms-dd">
+                <div class="ms-all-row"><input type="checkbox" id="fo-ms-all" checked onchange="msAllChange('fo')"> 전체 합산</div>
+                <div class="ms-items" id="fo-ms-items"></div>
+              </div>
+            </div>
           </div>
           <div class="field"><label>발행 기준월</label>
             <input id="fo-bill-month" type="text" placeholder="예: 2026년 4월" oninput="renderFeeOut()">
@@ -1606,7 +1654,11 @@ function calcEntryPreview(){
   el('ef-br').value=f.bs; el('ef-er').value=f.extra>0?f.es:'해당없음';
   const amt=parseFloat(el('ef-amt').value)||0;
   const base=Math.round(amt*f.base), extra=Math.round(amt*f.extra);
-  el('cp-amt').textContent=amt?W(Math.round(amt*1.1))+'원':'—';
+  // 부가세 반영
+  const vt=gv('ef-vat')||'taxable';
+  const vatRate=vt==='taxable'?0.1:0;
+  const vatLabel={'taxable':'과세(10%)','zero':'영세율(0%)','exempt':'면세'};
+  el('cp-amt').textContent=amt?W(Math.round(amt*(1+vatRate)))+'원 ('+vatLabel[vt]+')':'—';
   el('cp-base').textContent=amt?W(base)+'원':'—';
   el('cp-extra').textContent=amt&&extra?W(extra)+'원':'—';
   el('cp-total').textContent=amt?W(base+extra)+'원':'—';
@@ -1776,76 +1828,84 @@ function getEntriesMulti(){
   return execs.filter(ex=>ids.includes(ex.id)).flatMap(ex=>ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})));
 }
 
-function syncExecSels(){
-  const baseOpts='<option value="">전체 합산</option>'+execs.map(ex=>{const [y,m]=ex.month.split('-');return`<option value="${ex.id}">${ex.campName} ${y}년${parseInt(m)}월 (${ex.buyer})</option>`;}).join('');
-  el('pu-exec-sel').innerHTML=baseOpts;
-  el('fi-exec-sel').innerHTML=baseOpts;
-  el('fo-exec-sel').innerHTML=baseOpts;
-  // 멀티셀렉트 체크박스 목록 갱신
-  const checks=el('q-exec-checks');
-  if(!checks) return;
-  checks.innerHTML=execs.map(ex=>{
-    const [y,m]=ex.month.split('-');
-    return `<label style="display:flex;align-items:center;gap:8px;padding:.5rem .75rem;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="onExecCheckChange(event)">
-      <input type="checkbox" class="q-exec-cb" value="${ex.id}" checked style="cursor:pointer">
-      ${ex.campName} ${y}년${parseInt(m)}월 (${ex.buyer})
-    </label>`;
-  }).join('');
-  updateExecLabel();
+/* ════════════════════════════
+   공용 멀티셀렉트 엔진
+   prefix: q / pu / fi / fo
+   ════════════════════════════ */
+const MS_RENDER={q:()=>renderQuote(),pu:()=>renderPurchase(),fi:()=>renderFeeIn(),fo:()=>renderFeeOut()};
+
+function msToggle(prefix){
+  const dd=el(prefix+'-ms-dd');
+  ['q','pu','fi','fo'].forEach(p=>{if(p!==prefix){const d=el(p+'-ms-dd');if(d)d.classList.remove('open');}});
+  if(dd)dd.classList.toggle('open');
 }
 
-function toggleExecDropdown(){
-  const dd=el('q-exec-dropdown');
-  dd.style.display=dd.style.display==='none'?'block':'none';
-}
-
-// 드롭다운 외부 클릭 시 닫기
 document.addEventListener('click',function(e){
-  const trigger=el('q-exec-trigger'), dd=el('q-exec-dropdown');
-  if(trigger&&dd&&!trigger.contains(e.target)&&!dd.contains(e.target)){
-    dd.style.display='none';
-  }
+  ['q','pu','fi','fo'].forEach(prefix=>{
+    const dd=el(prefix+'-ms-dd');
+    const trigger=dd?.previousElementSibling;
+    if(dd&&trigger&&!trigger.contains(e.target)&&!dd.contains(e.target)) dd.classList.remove('open');
+  });
 });
 
-function toggleAllExecs(e){
-  e.stopPropagation();
-  const allCb=el('q-exec-all');
-  const checked=allCb.checked;
-  qsa('.q-exec-cb').forEach(cb=>cb.checked=checked);
-  updateExecLabel();
-  renderQuote();
+function msAllChange(prefix){
+  const allCb=el(prefix+'-ms-all');
+  qsa('#'+prefix+'-ms-items .ms-cb').forEach(cb=>cb.checked=allCb.checked);
+  msUpdateLabel(prefix);
+  MS_RENDER[prefix]?.();
 }
 
-function onExecCheckChange(e){
-  e.stopPropagation();
-  // 개별 체크 변경 시 전체 체크박스 상태 업데이트
-  setTimeout(()=>{
-    const cbs=[...qsa('.q-exec-cb')];
-    const allChecked=cbs.every(c=>c.checked);
-    const noneChecked=cbs.every(c=>!c.checked);
-    const allCb=el('q-exec-all');
-    if(allCb){allCb.checked=allChecked;allCb.indeterminate=!allChecked&&!noneChecked;}
-    updateExecLabel();
-    renderQuote();
-  },0);
+function msItemChange(prefix){
+  const cbs=[...qsa('#'+prefix+'-ms-items .ms-cb')];
+  const allChecked=cbs.every(c=>c.checked), noneChecked=cbs.every(c=>!c.checked);
+  const allCb=el(prefix+'-ms-all');
+  if(allCb){allCb.checked=allChecked;allCb.indeterminate=!allChecked&&!noneChecked;}
+  msUpdateLabel(prefix);
+  MS_RENDER[prefix]?.();
 }
 
-function updateExecLabel(){
-  const cbs=[...qsa('.q-exec-cb')];
+function msUpdateLabel(prefix){
+  const cbs=[...qsa('#'+prefix+'-ms-items .ms-cb')];
   const checked=cbs.filter(c=>c.checked);
-  const lbl=el('q-exec-label');
-  if(!lbl) return;
-  if(checked.length===0) lbl.textContent='선택 없음';
-  else if(checked.length===cbs.length) lbl.textContent='전체 합산';
+  const lbl=el(prefix+'-ms-label');
+  if(!lbl)return;
+  if(!cbs.length||checked.length===cbs.length) lbl.textContent='전체 합산';
+  else if(checked.length===0) lbl.textContent='선택 없음';
   else lbl.textContent=`${checked.length}건 선택`;
 }
 
-function getSelectedExecIds(){
-  const cbs=[...qsa('.q-exec-cb')];
-  if(!cbs.length) return null; // 전체
+function msGetIds(prefix){
+  const cbs=[...qsa('#'+prefix+'-ms-items .ms-cb')];
+  if(!cbs.length) return null;
   const checked=cbs.filter(c=>c.checked).map(c=>parseInt(c.value));
-  return checked.length===cbs.length ? null : checked; // null이면 전체
+  return checked.length===cbs.length?null:checked;
 }
+
+function syncExecSels(){
+  ['q','pu','fi','fo'].forEach(prefix=>{
+    const items=el(prefix+'-ms-items');
+    if(!items)return;
+    items.innerHTML=execs.map(ex=>{
+      const [y,m]=ex.month.split('-');
+      return `<label class="ms-row">
+        <input type="checkbox" class="ms-cb" value="${ex.id}" checked onchange="msItemChange('${prefix}')">
+        <div class="ms-row-text">
+          <div class="ms-row-main">${ex.campName}</div>
+          <div class="ms-row-sub">${y}년 ${parseInt(m)}월 · ${ex.buyer}</div>
+        </div>
+      </label>`;
+    }).join('');
+    msUpdateLabel(prefix);
+  });
+}
+
+function getEntriesByPrefix(prefix){
+  const ids=msGetIds(prefix);
+  if(!ids) return execs.flatMap(ex=>ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})));
+  return execs.filter(ex=>ids.includes(ex.id)).flatMap(ex=>ex.entries.map(e=>({...e,execId:ex.id,buyer:ex.buyer,camp:ex.campName,month:ex.month})));
+}
+
+function getEntriesMulti(){ return getEntriesByPrefix('q'); }
 
 function renderQuote(){
   const entries=getEntriesMulti();
@@ -1918,7 +1978,7 @@ function puTab(id, btn){
 }
 
 function renderPurchase(){
-  const entries=getEntries(gv('pu-exec-sel'));
+  const entries=getEntriesByPrefix('pu');
   const sA=entries.reduce((s,e)=>s+e.amt,0);
   const sB=entries.reduce((s,e)=>s+e.base,0);
   const sX=entries.reduce((s,e)=>s+e.extra,0);
@@ -2183,7 +2243,7 @@ function renderTaxGuide(){
 /* ── FEE-IN: 수수료(매입) 청구금액 확인 ── */
 /* 광고주(DTV)가 SPG에 발행해야 하는 수수료 = 기본수수료 × DTV 배분율 */
 function renderFeeIn(){
-  const entries=getEntries(gv('fi-exec-sel'));
+  const entries=getEntriesByPrefix('fi');
   const empty=()=>{el('fi-kpi').innerHTML='';el('fi-cards').innerHTML='<div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:2rem">집행 항목이 없습니다.</div>';};
   if(!entries.length){empty();return;}
 
@@ -2286,7 +2346,7 @@ function renderFeeIn(){
 /* ── FEE-OUT: 수수료(매출) 세금계산서 발행요청서 ── */
 /* SPG가 각 지불처(매체사)에 발행할 세금계산서 — 지불처별 합산 */
 function renderFeeOut(){
-  const entries=getEntries(gv('fo-exec-sel'));
+  const entries=getEntriesByPrefix('fo');
   const billMonth=el('fo-bill-month').value.trim();
   const empty=()=>{el('fo-kpi').innerHTML='';el('fo-cards').innerHTML='<div class="empty" style="border:1px solid var(--border);border-radius:var(--rl);padding:2rem">집행 항목이 없습니다.</div>';};
   if(!entries.length){empty();return;}

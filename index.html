@@ -2607,25 +2607,6 @@ async function saveAll(){
   }finally{_saving=false;}
 }
 
-    // shareRules
-    await db.ref('shareRules').set(shareRules);
-
-    // execs
-    const execsData={};
-    execs.forEach(ex=>{ execsData[ex.id]=ex; });
-    await db.ref('execs').set(execsData);
-
-    // counters
-    await db.ref('counters').set({did,cid,xid,eid_,sid_,bid});
-
-    setSyncBadge('ok');
-  }catch(e){
-    console.error('saveAll error',e);
-    setSyncBadge('err');
-    toast('저장 실패: '+e.message,'err');
-  }finally{ _saving=false; }
-}
-
 // 자동저장 디바운스 (1.5초 후)
 let _saveTimer=null;
 function autoSave(){
